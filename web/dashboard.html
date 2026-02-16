@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業管理系統 - 控制台</title>
+    <title>企業管理系統 - 購餐控制台</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/meals.js"></script> <script src="js/supabase.js"></script> <style>
+    <script src="js/meals.js"></script> <script src="js/supabase.js"></script>
+
+    <style>
         :root {
             --primary-color: #4a90e2; --secondary-color: #67c23a;
             --warning-color: #f39c12; --danger-color: #e74c3c;
@@ -29,7 +31,6 @@
 
         .card { background: white; border: 1px solid #f0f0f0; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
         
-        /* 統計區塊 */
         .stats-box { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
         .stat-item { background: #f0fff4; padding: 15px; border-radius: 10px; border-left: 5px solid var(--secondary-color); min-width: 130px; }
         .stat-label { font-size: 13px; color: #666; }
@@ -74,7 +75,7 @@
 
     <div class="card" style="background: #fffcf0; border: 1px solid #fbe6c2;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 id="bill-title" style="margin:0; color:#d35400;">我的本月購餐明細</h3>
+            <h3 id="bill-title" style="margin:0; color:#d35400;">購餐明細</h3>
             <button class="btn btn-refresh" onclick="refreshPersonalStats()">🔄 刷新數據</button>
         </div>
         <div id="personal-stats-container" style="margin-top:15px;"></div>
@@ -83,13 +84,13 @@
     <div id="admin-section" class="hidden">
         <div class="card" style="border-top: 5px solid var(--secondary-color);">
             <h3 id="admin-today-title" style="margin:0; color:var(--secondary-color);">🍱 今日統計匯總</h3>
-            <div id="admin-today-summary" class="stats-box">正在統計中...</div>
+            <div id="admin-today-summary" class="stats-box"></div>
             <div id="admin-today-total" style="text-align:right; font-weight:bold; margin-top:10px; font-size:18px;"></div>
         </div>
 
         <div class="card" style="border-top: 5px solid var(--danger-color);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 id="admin-month-title" style="margin:0; color:var(--danger-color);">📊 本月全員對帳統計</h3>
+                <h3 id="admin-month-title" style="margin:0; color:var(--danger-color);">📊 全員對帳統計</h3>
                 <button class="btn" style="background:var(--excel-color); padding:8px 15px; font-size:13px;" onclick="exportToCSV()">📥 匯出 Excel</button>
             </div>
             <div id="admin-month-container" style="margin-top:15px;"></div>
@@ -100,7 +101,6 @@
 </div>
 
 <script>
-    // 取得 LocalStorage 中的使用者資訊
     const uInfo = {
         name: localStorage.getItem('userName'),
         email: localStorage.getItem('userEmail'),
@@ -109,10 +109,19 @@
         dept: localStorage.getItem('department')
     };
 
+    // --- 台灣時間工具函式 ---
+    function getTaiwanTime() {
+        const now = new Date();
+        // 強制轉換為台灣時區時間物件
+        return new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+    }
+
     if (!uInfo.email) window.location.href = "index.html";
 
     window.onload = async function() {
-        // A. 動態渲染下拉選單 (資料來自 meals.js)
+        const twNow = getTaiwanTime();
+        
+        // A. 動態渲染選單
         const selectEl = document.getElementById('meal-select');
         MEAL_CONFIG.forEach(meal => {
             let opt = document.createElement('option');
@@ -122,36 +131,34 @@
         });
 
         // B. 初始化 UI
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
-        const day = now.getDate();
-        
         document.getElementById('welcome-text').innerText = `你好，${uInfo.name}！`;
         document.getElementById('display-id').innerText = uInfo.id || '---';
-        document.getElementById('display-dept').innerText = (uInfo.dept && uInfo.dept !== "null") ? uInfo.dept : "未設定";
+        document.getElementById('display-dept').innerText = uInfo.dept || '---';
         document.getElementById('display-email').innerText = uInfo.email;
         document.getElementById('display-role').innerText = uInfo.role === 'admin' ? '管理員' : '一般員工';
-        document.getElementById('today-title').innerText = `今天 ${year}年${month}月${day}日 點餐登記`;
-        document.getElementById('bill-title').innerText = `📅 ${uInfo.name} 的 ${month}月 購餐明細`;
+        
+        document.getElementById('today-title').innerText = `今天 ${twNow.getFullYear()}年${twNow.getMonth()+1}月${twNow.getDate()}日 點餐登記`;
+        document.getElementById('bill-title').innerText = `📅 ${uInfo.name} 的 ${twNow.getMonth()+1}月 購餐明細`;
 
-        // C. 檢查今日訂餐狀態
+        // C. 檢查與統計
         await checkTodayOrderStatus();
-
-        // D. 如果是管理員，載入管理員統計
         if (uInfo.role === 'admin') {
             document.getElementById('admin-section').classList.remove('hidden');
-            document.getElementById('admin-today-title').innerText = `🍱 今日 ${year}/${month}/${day} 統計`;
-            document.getElementById('admin-month-title').innerText = `📊 ${month}月 全員對帳統計`;
             refreshAdminStats();
         }
         refreshPersonalStats();
     };
 
     async function checkTodayOrderStatus() {
-        const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-        const { data } = await _supabase.from('meal_orders').select('meal_option')
-            .eq('user_email', uInfo.email).gte('created_at', startOfDay.toISOString()).maybeSingle();
+        // 設定台灣時間今日凌晨 00:00:00
+        const startOfToday = getTaiwanTime();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const { data } = await _supabase.from('meal_orders')
+            .select('meal_option')
+            .eq('user_email', uInfo.email)
+            .gte('created_at', startOfToday.toISOString()) // 關鍵：對應台灣日期
+            .maybeSingle();
 
         if (data) {
             document.getElementById('order-form-area').classList.add('hidden');
@@ -163,62 +170,78 @@
     async function orderMeal() {
         const meal = document.getElementById('meal-select').value;
         const { error } = await _supabase.from('meal_orders').insert([{ 
-            user_name: uInfo.name, user_email: uInfo.email, meal_option: meal 
+            user_name: uInfo.name, 
+            user_email: uInfo.email, 
+            meal_option: meal 
         }]);
-        if (!error) { alert(`登記成功：${meal}`); location.reload(); }
+
+        if (!error) { 
+            alert(`登記成功：${meal}`); 
+            location.reload(); 
+        } else {
+            alert("登記失敗，請檢查網路。");
+        }
     }
 
     async function refreshPersonalStats() {
-        const container = document.getElementById('personal-stats-container');
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-        const { data } = await _supabase.from('meal_orders').select('meal_option').eq('user_email', uInfo.email).gte('created_at', monthStart);
+        const twNow = getTaiwanTime();
+        const monthStart = new Date(twNow.getFullYear(), twNow.getMonth(), 1).toISOString();
 
-        if (!data || data.length === 0) { container.innerHTML = "本月尚無紀錄"; return; }
+        const { data } = await _supabase.from('meal_orders').select('meal_option')
+            .eq('user_email', uInfo.email).gte('created_at', monthStart);
+
+        const container = document.getElementById('personal-stats-container');
+        if (!data || data.length === 0) {
+            container.innerHTML = "本月尚無紀錄"; return;
+        }
 
         let stats = {}, total = 0;
         data.forEach(d => {
             stats[d.meal_option] = (stats[d.meal_option] || 0) + 1;
-            total += (mealPrices[d.meal_option] || 0); // 價格來自 meals.js
+            total += (mealPrices[d.meal_option] || 0);
         });
 
         let html = '<div>';
         for (const [name, count] of Object.entries(stats)) {
             const price = mealPrices[name] || 0;
-            html += `<div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            html += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #f9f9f9; padding-bottom:5px;">
                         <span>${name}</span>
                         <span class="calc-text">$${price} × ${count}次 = $${price*count}</span>
                      </div>`;
         }
-        html += `<div style="text-align:right; font-size:24px; font-weight:bold; color:#d35400; border-top:1px solid #eee; padding-top:10px;">總金額：$${total}</div></div>`;
+        html += `<div style="text-align:right; font-size:24px; font-weight:bold; color:#d35400; margin-top:10px;">總金額：$${total}</div></div>`;
         container.innerHTML = html;
     }
 
     async function refreshAdminStats() {
-        const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
-        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const twNow = getTaiwanTime();
+        const startOfDay = new Date(twNow.getFullYear(), twNow.getMonth(), twNow.getDate()).toISOString();
+        const startOfMonth = new Date(twNow.getFullYear(), twNow.getMonth(), 1).toISOString();
 
-        const { data: tData } = await _supabase.from('meal_orders').select('meal_option').gte('created_at', startOfDay.toISOString());
-        let tSum = {}, tAmt = 0;
-        tData?.forEach(o => { 
-            tSum[o.meal_option] = (tSum[o.meal_option] || 0) + 1; 
-            tAmt += (mealPrices[o.meal_option] || 0); 
+        // 今日統計
+        const { data: tData } = await _supabase.from('meal_orders').select('meal_option').gte('created_at', startOfDay);
+        let tSum = {}, tTotal = 0;
+        tData?.forEach(o => {
+            tSum[o.meal_option] = (tSum[o.meal_option] || 0) + 1;
+            tTotal += (mealPrices[o.meal_option] || 0);
         });
         document.getElementById('admin-today-summary').innerHTML = Object.entries(tSum).map(([n, c]) => `
-            <div class="stat-item"><div class="stat-label">${n}</div><div class="stat-value">${c} 個</div></div>`).join('') || '無訂單';
-        document.getElementById('admin-today-total').innerText = `今日預估金額：$${tAmt}`;
+            <div class="stat-item"><div class="stat-label">${n}</div><div class="stat-value">${c} 個</div></div>`).join('') || '今日無訂單';
+        document.getElementById('admin-today-total').innerText = `今日總金額：$${tTotal}`;
 
+        // 月度對帳
         const { data: mData } = await _supabase.from('meal_orders').select('*').gte('created_at', startOfMonth);
         let uSum = {};
         mData?.forEach(o => {
-            if(!uSum[o.user_email]) uSum[o.user_email] = { name: o.user_name, total: 0, detail: {} };
+            if(!uSum[o.user_email]) uSum[o.user_email] = { name: o.user_name, total: 0, d: {} };
             uSum[o.user_email].total += (mealPrices[o.meal_option] || 0);
-            uSum[o.user_email].detail[o.meal_option] = (uSum[o.user_email].detail[o.meal_option] || 0) + 1;
+            uSum[o.user_email].d[o.meal_option] = (uSum[o.user_email].d[o.meal_option] || 0) + 1;
         });
 
         let table = '<table class="admin-table"><tr><th>員工</th><th>Email</th><th>明細</th><th>總額</th></tr>';
         for(const e in uSum) {
-            const dStr = Object.entries(uSum[e].detail).map(([m, c]) => `${m}x${c}`).join(', ');
-            table += `<tr><td><strong>${uSum[e].name}</strong></td><td>${e}</td><td>${dStr}</td><td style="color:var(--danger-color); font-weight:bold;">$${uSum[e].total}</td></tr>`;
+            const detail = Object.entries(uSum[e].d).map(([m, c]) => `${m}x${c}`).join(', ');
+            table += `<tr><td><strong>${uSum[e].name}</strong></td><td>${e}</td><td>${detail}</td><td style="color:var(--danger-color); font-weight:bold;">$${uSum[e].total}</td></tr>`;
         }
         document.getElementById('admin-month-container').innerHTML = table + '</table>';
     }
