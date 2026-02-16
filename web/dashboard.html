@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業管理系統 - 專業對帳版</title>
+    <title>企業管理系統 - 員工中心</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -18,33 +18,27 @@
         body { font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
         .container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
         
-        /* 頁首 */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .tag { background: #eef2f7; padding: 6px 15px; border-radius: 50px; font-size: 13px; color: #555; font-weight: 500; }
 
-        /* 點餐區 */
         .order-card { background: #fff; padding: 20px; border-radius: 15px; border: 2px solid #eef2f7; margin-bottom: 25px; text-align: center; }
         .meal-select { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; width: 280px; margin-right: 10px; }
         
-        /* 按鈕樣式 */
         .btn { padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; color: white; transition: 0.2s; }
         .btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-meal { background: var(--secondary-color); }
         .btn-excel { background: var(--excel-color); }
         .btn-refresh { background: #95a5a6; padding: 5px 10px; font-size: 12px; }
 
-        /* 版面配置 */
         .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .card { background: white; border: 1px solid #f0f0f0; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         .full-width { grid-column: span 2; }
         
-        /* 表格樣式 */
         .admin-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
         .admin-table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #eee; }
         .admin-table td { padding: 12px; border-bottom: 1px solid #eee; }
         .total-highlight { font-size: 20px; font-weight: bold; color: var(--danger-color); text-align: right; margin-top: 20px; }
 
-        /* 進度條 */
         .bar-bg { background: #eee; border-radius: 10px; height: 8px; width: 100%; margin-top: 5px; }
         .bar-fill { height: 100%; background: var(--warning-color); border-radius: 10px; transition: 0.6s; }
 
@@ -56,7 +50,7 @@
 
 <div class="container">
     <div class="header">
-        <h2 style="margin:0;">🍱 企業管理系統</h2>
+        <h2 style="margin:0;">你好，<span id="welcome-name" style="color:var(--primary-color);">員工</span>！歡迎回來</h2>
         <div>
             <span class="tag" id="display-name">載入中...</span>
             <span class="tag" id="display-email">載入中...</span>
@@ -64,7 +58,7 @@
     </div>
 
     <div class="order-card">
-        <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">今天點餐：</span>
+        <span id="today-date-label" style="font-size: 18px; font-weight: bold; margin-right: 15px;">今天點餐：</span>
         <select id="meal-select" class="meal-select">
             <option value="排骨飯">排骨飯 ($120)</option>
             <option value="雞排飯">雞排飯 ($120)</option>
@@ -77,14 +71,14 @@
     <div class="dashboard-grid">
         <div class="card full-width" style="background: #fffdf0; border-color: #fbe6c2;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; color:#d35400;">📅 我的本月購餐帳單</h3>
+                <h3 id="personal-bill-title" style="margin:0; color:#d35400;">員工的本月購餐帳單</h3>
                 <button class="btn btn-refresh" onclick="refreshPersonalStats()">🔄 刷新帳單</button>
             </div>
             <div id="personal-stats-container">計算中...</div>
         </div>
 
         <div class="card">
-            <h3>📊 海報投票即時戰況</h3>
+            <h3>📊 海報投票戰況</h3>
             <button class="btn" style="background:var(--warning-color); width:100%; margin-bottom:15px;" onclick="votePoster()">🖼️ 參與海報投票</button>
             <div id="vote-bars">載入中...</div>
         </div>
@@ -98,7 +92,7 @@
                 </div>
             </div>
             <div id="admin-meal-container">
-                <p style="color:#999; margin-top:15px;">讀取對帳資料中...</p>
+                <p style="color:#999; margin-top:15px;">讀取中...</p>
             </div>
         </div>
     </div>
@@ -113,11 +107,26 @@
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
 
+    // 取得當前日期資訊
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1; // 月份從0開始
+    const date = now.getDate();
+
     if (!userEmail) {
         window.location.href = "index.html";
     } else {
+        // 設定網頁顯示文字
+        document.getElementById('welcome-name').innerText = userName;
         document.getElementById('display-name').innerText = "👤 " + userName;
         document.getElementById('display-email').innerText = "📧 " + userEmail;
+        
+        // 修改標題：今天 + 年月日
+        document.getElementById('today-date-label').innerText = `今天 ${year}年${month}月${date}日 點餐：`;
+        
+        // 修改標題：員工姓名 + 月份
+        document.getElementById('personal-bill-title').innerText = `📅 ${userName} 的 ${month}月 購餐帳單`;
+
         if (userRole === 'admin') {
             document.getElementById('admin-stats-box').classList.remove('hidden');
             refreshAdminStats();
@@ -140,7 +149,7 @@
         }
     }
 
-    // [個人本月統計]
+    // [個人統計]
     async function refreshPersonalStats() {
         const container = document.getElementById('personal-stats-container');
         const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -148,7 +157,7 @@
             .eq('user_email', userEmail).gte('created_at', monthStart);
 
         if (!data || data.length === 0) {
-            container.innerHTML = "<p style='color:#999'>本月尚無訂購紀錄。</p>";
+            container.innerHTML = "<p style='color:#999'>本月尚無紀錄。</p>";
             return;
         }
 
@@ -167,13 +176,13 @@
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px; margin-top:15px;">
                 <div>${listHtml}</div>
                 <div style="text-align:right;">
-                    <span style="font-size:14px; color:#666;">您的本月累計金額：</span>
+                    <span style="font-size:14px; color:#666;">本月結算金額：</span>
                     <div style="font-size:36px; font-weight:bold; color:#d35400;">$${total}</div>
                 </div>
             </div>`;
     }
 
-    // [管理員全員對帳]
+    // [管理員統計]
     async function refreshAdminStats() {
         const container = document.getElementById('admin-meal-container');
         const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -208,18 +217,16 @@
         container.innerHTML = tableHtml;
     }
 
-    // [匯出 Excel (CSV)]
+    // [匯出 CSV]
     function exportToCSV() {
         const rows = document.querySelectorAll(".admin-table tr");
         if (rows.length === 0) return alert("沒有資料可匯出");
-
         let csv = "\ufeff員工姓名,Email,訂購明細,本月總計\n";
         document.querySelectorAll(".admin-table tbody tr").forEach(row => {
             const cols = row.querySelectorAll("td");
             const rowData = Array.from(cols).map(c => `"${c.innerText.replace(/"/g, '""')}"`);
             csv += rowData.join(",") + "\n";
         });
-
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
@@ -227,7 +234,7 @@
         link.click();
     }
 
-    // [海報投票]
+    // [投票]
     async function votePoster() {
         const id = prompt("投票給 A, B, 或 C?").toUpperCase();
         if (['A','B','C'].includes(id)) {
