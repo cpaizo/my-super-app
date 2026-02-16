@@ -22,7 +22,7 @@
     <main class="container">
         <div class="card">
             <div class="clock-display" id="clock">00:00:00</div>
-            <div class="date-display" id="date-info">----年--月--日</div>
+            <div class="date-display" id="date-info">2026年2月17日</div>
 
             <h3 id="welcome-msg" style="text-align:center;">載入中...</h3>
             <p style="text-align:center;">當前身分：<mark id="user-role">---</mark></p>
@@ -38,13 +38,13 @@
             <div class="location-info" id="gps-detail">
                 <strong>[ 偵測資訊 ]</strong><br>
                 目前位置：<span id="coord-val">尚未取得</span><br>
-                距離公司：<span id="dist-val">--</span> 公尺
+                距離中心：<span id="dist-val">--</span> 公尺
             </div>
         </div>
     </main>
 
     <script>
-        /* --- 核心座標設定：直接寫在程式內 --- */
+        // 1. 核心座標設定 (寫入程式內)
         const OFFICE_CONFIG = {
             lat: 25.071417,  // 辦公室緯度
             lng: 121.368083, // 辦公室經度
@@ -57,7 +57,7 @@
             role: localStorage.getItem('userRole')
         };
 
-        // 1. 時間更新
+        // 2. 更新時鐘邏輯
         function updateClock() {
             const now = new Date();
             const twTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
@@ -77,19 +77,19 @@
             updateClock();
         };
 
-        // 2. 距離計算 (Haversine 公式)
+        // 3. 距離計算 (Haversine 公式)
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // 地球半徑 km
+            const R = 6371; // km
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon / 2) * Math.sin(dLon / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return Math.round(R * c * 1000); // 公尺
+            return Math.round(R * c * 1000); // 轉換為公尺
         }
 
-        // 3. 打卡處理
+        // 4. 打卡處理邏輯
         async function handleCheckIn(actionType) {
             const statusEl = document.getElementById('status');
             const btnIn = document.getElementById('btn-in');
@@ -99,14 +99,8 @@
             btnIn.disabled = true;
             btnOut.disabled = true;
 
-            if (!navigator.geolocation) {
-                statusEl.innerText = "❌ 您的瀏覽器不支援定位功能";
-                return;
-            }
-
-            // 筆電測試建議：高精度設為 false 較容易在室內透過 Wi-Fi 成功定位
             const geoOptions = {
-                enableHighAccuracy: false, 
+                enableHighAccuracy: false, // 筆電建議 false 以加快定位
                 timeout: 15000,           
                 maximumAge: 0             
             };
@@ -117,7 +111,7 @@
                     const uLng = pos.coords.longitude;
                     const dist = calculateDistance(uLat, uLng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
                     
-                    document.getElementById('coord-val').innerText = `${uLat.toFixed(5)}, ${uLng.toFixed(5)}`;
+                    document.getElementById('coord-val').innerText = `${uLat.toFixed(6)}, ${uLng.toFixed(6)}`;
                     document.getElementById('dist-val').innerText = dist;
 
                     if (dist > OFFICE_CONFIG.radius) {
@@ -130,11 +124,7 @@
                     }
                 },
                 (err) => {
-                    let msg = "定位失敗：";
-                    if (err.code === 1) msg += "請允許位置權限";
-                    else if (err.code === 2) msg += "請開啟 Wi-Fi 定位";
-                    else if (err.code === 3) msg += "定位逾時，請重試";
-                    statusEl.innerHTML = `<span style="color:red">${msg}</span>`;
+                    statusEl.innerHTML = `<span style="color:red">定位失敗 (請確認開啟 Wi-Fi 定位)</span>`;
                     btnIn.disabled = false;
                     btnOut.disabled = false;
                 }, 
@@ -142,22 +132,27 @@
             );
         }
 
-        // 4. 寫入 Supabase
+        // 5. 寫入資料庫：將 GPS 資料拆分為 緯度、經度、距離
         async function submitAttendance(lat, lng, type) {
+            const statusEl = document.getElementById('status');
+            const dist = calculateDistance(lat, lng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
+
             const { error } = await _supabase.from('attendance_logs').insert([{
                 user_email: uInfo.email,
                 user_name: uInfo.name,
-                type: type,
-                latitude: lat,
-                longitude: lng,
-                is_within_range: true,
+                type: type,            
+                latitude: lat,         // 緯度
+                longitude: lng,        // 經度
+                distance: dist,        // 距離
+                is_within_range: true, 
                 device_info: navigator.userAgent
             }]);
 
             if (!error) {
-                document.getElementById('status').innerHTML = `<span style="color:green">✅ 打卡成功！</span>`;
+                statusEl.innerHTML = `<span style="color:green">✅ 打卡成功！</span>`;
                 setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
             } else {
+                console.error(error);
                 alert("寫入失敗：" + error.message);
                 document.getElementById('btn-in').disabled = false;
                 document.getElementById('btn-out').disabled = false;
