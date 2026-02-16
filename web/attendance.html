@@ -15,7 +15,7 @@
         .clock-display { font-size: 2.8rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem; color: #1a1a1a; }
         .date-display { text-align: center; color: #777; margin-bottom: 2rem; letter-spacing: 1px; }
         button { width: 100%; margin-bottom: 1rem; font-size: 1.1rem; }
-        .location-info { font-size: 0.85rem; color: #888; text-align: center; margin-top: 1rem; }
+        .location-info { font-size: 0.85rem; color: #888; text-align: center; margin-top: 1rem; background: #f9f9f9; padding: 10px; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -24,7 +24,7 @@
             <div class="clock-display" id="clock">00:00:00</div>
             <div class="date-display" id="date-info">----年--月--日</div>
 
-            <h3 id="welcome-msg" style="text-align:center;">正在讀取身分...</h3>
+            <h3 id="welcome-msg" style="text-align:center;">載入中...</h3>
             <p style="text-align:center;">當前身分：<mark id="user-role">---</mark></p>
             <hr>
             
@@ -33,25 +33,31 @@
                 <button id="btn-out" class="secondary" onclick="handleCheckIn('check_out')">🌜 下班打卡</button>
             </div>
 
-            <div id="status">正在初始化定位系統...</div>
+            <div id="status">📍 GPS 定位系統就緒</div>
 
-            <div class="location-info" id="gps-detail" style="display:none;">
-                目前經緯：<span id="coord-val">--</span><br>
-                距離中心：<span id="dist-val">--</span> 公尺
+            <div class="location-info" id="gps-detail">
+                <strong>[ 偵測資訊 ]</strong><br>
+                目前位置：<span id="coord-val">尚未取得</span><br>
+                距離公司：<span id="dist-val">--</span> 公尺
             </div>
         </div>
     </main>
 
     <script>
-        // 變數初始化
-        let OFFICE_CONFIG = { lat: 0, lng: 0, radius: 200 };
+        /* --- 核心座標設定：直接寫在程式內 --- */
+        const OFFICE_CONFIG = {
+            lat: 25.071417,  // 辦公室緯度
+            lng: 121.368083, // 辦公室經度
+            radius: 200      // 允許打卡半徑 (公尺)
+        };
+
         const uInfo = {
             name: localStorage.getItem('userName'),
             email: localStorage.getItem('userEmail'),
             role: localStorage.getItem('userRole')
         };
 
-        // 1. 更新時鐘邏輯
+        // 1. 時間更新
         function updateClock() {
             const now = new Date();
             const twTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
@@ -60,47 +66,30 @@
         }
         setInterval(updateClock, 1000);
 
-        // 2. 網頁載入讀取設定
-        window.onload = async function() {
+        window.onload = function() {
             if (!uInfo.email) {
                 alert("登入逾時，請重新登入");
                 window.location.href = "index.html";
                 return;
             }
-
             document.getElementById('welcome-msg').innerText = `你好，${uInfo.name}`;
             document.getElementById('user-role').innerText = uInfo.role;
-
-            try {
-                // 從 Supabase 抓取辦公室座標
-                const { data, error } = await _supabase
-                    .from('system_config')
-                    .select('value_json')
-                    .eq('key', 'office_location')
-                    .single();
-                
-                if (data) {
-                    OFFICE_CONFIG = data.value_json;
-                    document.getElementById('status').innerHTML = "📍 GPS 定位已就緒<br><small>請確認已開啟 Wi-Fi 以利定位</small>";
-                }
-            } catch (e) {
-                document.getElementById('status').innerText = "❌ 無法連線至伺服器設定";
-            }
+            updateClock();
         };
 
-        // 3. 距離計算 (Haversine 公式)
+        // 2. 距離計算 (Haversine 公式)
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // km
+            const R = 6371; // 地球半徑 km
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon / 2) * Math.sin(dLon / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return Math.round(R * c * 1000); // 轉換為公尺
+            return Math.round(R * c * 1000); // 公尺
         }
 
-        // 4. 打卡處理邏輯
+        // 3. 打卡處理
         async function handleCheckIn(actionType) {
             const statusEl = document.getElementById('status');
             const btnIn = document.getElementById('btn-in');
@@ -110,65 +99,50 @@
             btnIn.disabled = true;
             btnOut.disabled = true;
 
-            // 針對筆電優化的定位參數：先嘗試高精度，失敗後降級
-            const geoOptions = {
-                enableHighAccuracy: true, 
-                timeout: 10000,           
-                maximumAge: 0             
-            };
-
             if (!navigator.geolocation) {
                 statusEl.innerText = "❌ 您的瀏覽器不支援定位功能";
                 return;
             }
 
+            // 筆電測試建議：高精度設為 false 較容易在室內透過 Wi-Fi 成功定位
+            const geoOptions = {
+                enableHighAccuracy: false, 
+                timeout: 15000,           
+                maximumAge: 0             
+            };
+
             navigator.geolocation.getCurrentPosition(
                 async (pos) => {
                     const uLat = pos.coords.latitude;
                     const uLng = pos.coords.longitude;
-                    
                     const dist = calculateDistance(uLat, uLng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
                     
-                    // 顯示偵錯資訊
-                    document.getElementById('gps-detail').style.display = "block";
-                    document.getElementById('coord-val').innerText = `${uLat.toFixed(4)}, ${uLng.toFixed(4)}`;
+                    document.getElementById('coord-val').innerText = `${uLat.toFixed(5)}, ${uLng.toFixed(5)}`;
                     document.getElementById('dist-val').innerText = dist;
 
                     if (dist > OFFICE_CONFIG.radius) {
-                        statusEl.innerHTML = `<span style="color:red">❌ 距離公司過遠 (${dist}m)</span><br><small>打卡半徑限制：${OFFICE_CONFIG.radius}m</small>`;
+                        statusEl.innerHTML = `<span style="color:red">❌ 距離過遠 (${dist}m)</span><br><small>限制：${OFFICE_CONFIG.radius}m 內</small>`;
                         btnIn.disabled = false;
                         btnOut.disabled = false;
                     } else {
-                        statusEl.innerText = "📍 範圍確認成功！上傳資料中...";
+                        statusEl.innerText = "📍 範圍確認成功！正在上傳紀錄...";
                         await submitAttendance(uLat, uLng, actionType);
                     }
                 },
                 (err) => {
-                    // 如果高精度失敗，嘗試低精度 (Wi-Fi 模式)
-                    if (geoOptions.enableHighAccuracy) {
-                        statusEl.innerText = "嘗試備用定位模式中...";
-                        geoOptions.enableHighAccuracy = false;
-                        navigator.geolocation.getCurrentPosition(arguments.callee, handleGeoError, geoOptions);
-                    } else {
-                        handleGeoError(err);
-                    }
+                    let msg = "定位失敗：";
+                    if (err.code === 1) msg += "請允許位置權限";
+                    else if (err.code === 2) msg += "請開啟 Wi-Fi 定位";
+                    else if (err.code === 3) msg += "定位逾時，請重試";
+                    statusEl.innerHTML = `<span style="color:red">${msg}</span>`;
+                    btnIn.disabled = false;
+                    btnOut.disabled = false;
                 }, 
                 geoOptions
             );
         }
 
-        function handleGeoError(err) {
-            const statusEl = document.getElementById('status');
-            let msg = "定位失敗：";
-            if (err.code === 1) msg += "權限被拒絕";
-            else if (err.code === 2) msg += "無法偵測位置 (請確認 Wi-Fi 已開啟)";
-            else if (err.code === 3) msg += "定位逾時";
-            statusEl.innerHTML = `<span style="color:red">${msg}</span>`;
-            document.getElementById('btn-in').disabled = false;
-            document.getElementById('btn-out').disabled = false;
-        }
-
-        // 5. 寫入資料庫
+        // 4. 寫入 Supabase
         async function submitAttendance(lat, lng, type) {
             const { error } = await _supabase.from('attendance_logs').insert([{
                 user_email: uInfo.email,
@@ -184,7 +158,7 @@
                 document.getElementById('status').innerHTML = `<span style="color:green">✅ 打卡成功！</span>`;
                 setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
             } else {
-                alert("資料庫寫入失敗：" + error.message);
+                alert("寫入失敗：" + error.message);
                 document.getElementById('btn-in').disabled = false;
                 document.getElementById('btn-out').disabled = false;
             }
