@@ -2,10 +2,30 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>我的超級應用</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>員工打卡系統</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1.1rem; }
+        button:hover { background-color: #0056b3; }
+        #status { margin-top: 1rem; color: #666; }
+    </style>
 </head>
 <body>
-    <h1>這是我的本地電腦測試網頁！</h1>
-    <p>如果看到這行字，代表你的 VS Code 和資料夾結構都對了。</p>
+    <div class="card">
+        <h1>🚀 員工打卡系統</h1>
+        <p>請點擊下方按鈕完成今日簽到</p>
+        <button onclick="checkIn()">立即打卡</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        function checkIn() {
+            const status = document.getElementById('status');
+            status.innerText = "打卡處理中... (稍後連線資料庫)";
+            // 這裡之後會寫連線到 Go 後端的程式碼
+        }
+    </script>
 </body>
 </html>
