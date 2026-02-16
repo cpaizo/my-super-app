@@ -3,202 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業管理系統 - 員工登入</title>
+    <title>企業管理系統 - 安全登入</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --primary-color: #4a90e2;
-            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        body {
-            font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif;
-            background: var(--bg-gradient);
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-        }
-
-        .login-card {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-        }
-
-        .login-card h2 {
-            margin-bottom: 10px;
-            color: #333;
-        }
-
-        .login-card p {
-            color: #777;
-            font-size: 14px;
-            margin-bottom: 30px;
-        }
-
-        .input-group {
-            text-align: left;
-            margin-bottom: 20px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #555;
-            font-weight: bold;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 16px;
-            transition: 0.3s;
-        }
-
-        .input-group input:focus {
-            border-color: var(--primary-color);
-            outline: none;
-            box-shadow: 0 0 8px rgba(74, 144, 226, 0.2);
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.3s;
-            margin-top: 10px;
-        }
-
-        .btn-login:hover {
-            background-color: #357abd;
-            transform: translateY(-1px);
-        }
-
-        .footer-text {
-            margin-top: 25px;
-            font-size: 12px;
-            color: #aaa;
-        }
-
-        /* 簡單的載入動畫樣式 */
-        .loading {
-            opacity: 0.7;
-            pointer-events: none;
-        }
+        :root { --primary-color: #4a90e2; --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        body { font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif; background: var(--bg-gradient); height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); width: 350px; text-align: center; }
+        .input-group { text-align: left; margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #555; font-weight: bold; }
+        .input-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .btn-login { width: 100%; padding: 14px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .btn-login:hover { background-color: #357abd; }
+        .loading { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div class="login-card" id="login-box">
-    <h2>🏢 企業員工入口</h2>
-    <p>請輸入您的員工帳號以存取系統</p>
+    <h2 style="color:#333;">員工系統登入</h2>
+    <p style="color:#777; font-size:14px; margin-bottom:25px;">請輸入您的電子郵件與專屬密碼</p>
 
     <div class="input-group">
         <label>電子郵件 (Email)</label>
-        <input type="email" id="email" placeholder="example@company.com" required>
+        <input type="email" id="email" placeholder="user@company.com">
     </div>
 
     <div class="input-group">
         <label>密碼 (Password)</label>
-        <input type="password" id="password" placeholder="請輸入密碼" required>
+        <input type="password" id="password" placeholder="请输入您的密碼">
     </div>
 
-    <button class="btn-login" onclick="handleLogin()">登入系統</button>
-
-    <div class="footer-text">
-        &copy; 2024 企業管理系統 版權所有
-    </div>
+    <button class="btn-login" id="login-btn" onclick="handleLogin()">驗證並登入</button>
 </div>
 
 <script src="js/supabase.js"></script>
 
 <script>
-    // 檢查是否已經登入過，有的話直接導向 dashboard
-    if (localStorage.getItem('userEmail')) {
-        window.location.href = "dashboard.html";
-    }
-
     async function handleLogin() {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
-        const loginBox = document.getElementById('login-box');
+        const emailInput = document.getElementById('email').value.trim();
+        const passwordInput = document.getElementById('password').value;
+        const btn = document.getElementById('login-btn');
 
-        if (!email || !password) {
-            alert("請填寫完整的 Email 與密碼");
+        if (!emailInput || !passwordInput) {
+            alert("請完整輸入帳號與密碼");
             return;
         }
 
-        // 加上載入狀態
-        loginBox.classList.add('loading');
+        btn.innerText = "驗證中...";
+        document.getElementById('login-box').classList.add('loading');
 
         try {
-            // 1. 先進行 Supabase 身份驗證 (Auth)
-            // 注意：這裡假設您已經在 Supabase Auth 建立了帳號
-            const { data: authData, error: authError } = await _supabase.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
-
-            if (authError) {
-                throw new Error("登入失敗：帳號或密碼錯誤");
-            }
-
-            // 2. 登入成功後，去真實的「員工基本資料庫 (employees)」抓取正確姓名與工號
-            const { data: empData, error: empError } = await _supabase
+            // 從 employees 資料庫同時抓取資料與密碼進行比對
+            const { data: user, error } = await _supabase
                 .from('employees')
-                .select('employee_id, full_name, role, department')
-                .eq('email', email)
+                .select('*')
+                .eq('email', emailInput)
                 .single();
 
-            if (empError || !empData) {
-                // 如果 Auth 過了但 employees 表格沒資料，可能是資料庫沒建立好
-                console.error("Employee data not found:", empError);
-                // 應急處理：如果沒資料，暫時用 email 當名稱，或報錯
-                localStorage.setItem('userEmail', email);
-                localStorage.setItem('userName', email.split('@')[0]);
-                localStorage.setItem('userRole', 'staff');
-                localStorage.setItem('employeeId', 'N/A');
+            if (error || !user) {
+                alert("此帳號不存在");
+            } else if (user.password !== passwordInput) {
+                // 這裡執行真正的密碼驗證比對
+                alert("密碼錯誤，請重新輸入");
             } else {
-                // 3. 抓到真實資料，存入 localStorage 供 dashboard 使用
-                localStorage.setItem('userEmail', email);
-                localStorage.setItem('userName', empData.full_name); // 這就是你要的真實姓名
-                localStorage.setItem('userRole', empData.role);      // staff 或 admin
-                localStorage.setItem('employeeId', empData.employee_id);
-                localStorage.setItem('department', empData.department);
+                // 驗證成功，儲存資料
+                localStorage.setItem('userEmail', user.email);
+                localStorage.setItem('userName', user.full_name);
+                localStorage.setItem('userRole', user.role);
+                localStorage.setItem('employeeId', user.employee_id);
+
+                alert(`歡迎回來，${user.full_name}！`);
+                window.location.href = "dashboard.html";
             }
-
-            // 跳轉到主頁面
-            window.location.href = "dashboard.html";
-
-        } catch (error) {
-            alert(error.message);
+        } catch (err) {
+            console.error(err);
+            alert("登入過程發生異常");
         } finally {
-            loginBox.classList.remove('loading');
+            btn.innerText = "驗證並登入";
+            document.getElementById('login-box').classList.remove('loading');
         }
     }
 
-    // 支援按下 Enter 鍵登入
-    document.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            handleLogin();
-        }
-    });
+    // 支援 Enter 鍵
+    document.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleLogin(); });
 </script>
 
 </body>

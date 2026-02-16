@@ -3,49 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業管理系統 - 員工中心</title>
+    <title>企業管理系統 - 控制台</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
-            --primary-color: #4a90e2; --secondary-color: #67c23a;
-            --warning-color: #f39c12; --danger-color: #e74c3c;
-            --excel-color: #27ae60; --bg-color: #f4f7f6;
+            --primary-color: #4a90e2;
+            --secondary-color: #67c23a;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --excel-color: #27ae60;
+            --bg-color: #f4f7f6;
+            --card-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
-        body { font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
-        .container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f0f2f5; padding-bottom: 15px; }
-        .tag { background: #eef2f7; padding: 6px 15px; border-radius: 50px; font-size: 13px; color: #555; }
-        .order-card { background: #fff; padding: 20px; border-radius: 15px; border: 2px solid #eef2f7; margin-bottom: 25px; text-align: center; }
-        .meal-select { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; width: 280px; margin-right: 10px; }
+
+        body { font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif; background: var(--bg-color); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        
+        /* 頁首樣式 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #f0f2f5; padding-bottom: 15px; }
+        .user-welcome h2 { margin: 0; color: var(--primary-color); }
+        .user-welcome p { margin: 5px 0 0 0; color: #666; font-size: 14px; }
+        .tag-group { display: flex; gap: 8px; }
+        .tag { background: #eef2f7; padding: 6px 12px; border-radius: 50px; font-size: 12px; color: #555; font-weight: 500; }
+
+        /* 點餐區塊 */
+        .order-card { background: #fff; padding: 25px; border-radius: 15px; border: 2px solid #eef2f7; margin-bottom: 25px; text-align: center; }
+        .date-label { font-size: 18px; font-weight: bold; margin-bottom: 15px; display: block; color: #444; }
+        .meal-select { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; width: 280px; margin-right: 10px; outline: none; }
+        
+        /* 按鈕系統 */
         .btn { padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; color: white; transition: 0.2s; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-meal { background: var(--secondary-color); }
-        .btn-excel { background: var(--excel-color); }
-        .btn-refresh { background: #95a5a6; padding: 5px 10px; font-size: 12px; }
+        .btn-excel { background: var(--excel-color); font-size: 13px; padding: 8px 15px; }
+        .btn-refresh { background: #95a5a6; padding: 5px 12px; font-size: 12px; }
+
+        /* 版面網格 */
         .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card { background: white; border: 1px solid #f0f0f0; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .card { background: white; border: 1px solid #f0f0f0; padding: 20px; border-radius: 15px; box-shadow: var(--card-shadow); }
         .full-width { grid-column: span 2; }
-        .admin-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-        .admin-table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #eee; }
-        .admin-table td { padding: 12px; border-bottom: 1px solid #eee; }
-        .total-highlight { font-size: 22px; font-weight: bold; color: var(--danger-color); text-align: right; margin-top: 20px; }
-        .logout-link { color: #aaa; text-decoration: none; font-size: 13px; display: block; text-align: center; margin-top: 30px; }
+        
+        /* 表格樣式 */
+        .admin-table-wrapper { overflow-x: auto; margin-top: 15px; }
+        .admin-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        .admin-table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #eee; color: #666; }
+        .admin-table td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .total-row { font-size: 22px; font-weight: bold; color: var(--danger-color); text-align: right; margin-top: 20px; padding-top: 10px; border-top: 2px dashed #eee; }
+
+        .hidden { display: none !important; }
+        .logout-btn { color: #e74c3c; text-decoration: none; font-size: 14px; font-weight: bold; margin-top: 30px; display: block; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <div>
-            <h2 style="margin:0;">你好，<span id="welcome-name" style="color:var(--primary-color);">讀取中...</span></h2>
-            <p style="margin:5px 0 0 0; color:#888; font-size:14px;">工號：<span id="display-id">---</span></p>
+        <div class="user-welcome">
+            <h2 id="welcome-text">你好，讀取中...</h2>
+            <p>工號：<span id="display-id">---</span> | 部門：<span id="display-dept">---</span></p>
         </div>
-        <div>
-            <span class="tag" id="display-email">Email</span>
+        <div class="tag-group">
+            <span class="tag" id="display-email">email@company.com</span>
+            <span class="tag" style="background:#fff4e5; color:#d35400;" id="display-role">Staff</span>
         </div>
     </div>
 
     <div class="order-card">
-        <span id="today-date-label" style="font-size: 18px; font-weight: bold; margin-right: 15px;">日期加載中...</span>
+        <label class="date-label" id="today-title">今天日期 點餐登記</label>
         <select id="meal-select" class="meal-select">
             <option value="排骨飯">排骨飯 ($120)</option>
             <option value="雞排飯">雞排飯 ($120)</option>
@@ -56,156 +80,202 @@
     </div>
 
     <div class="dashboard-grid">
-        <div class="card full-width" style="background: #fffdf0; border-color: #fbe6c2;">
+        <div class="card full-width" style="background: #fffcf0; border: 1px solid #fbe6c2;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 id="personal-bill-title" style="margin:0; color:#d35400;">我的購餐帳單</h3>
-                <button class="btn btn-refresh" onclick="refreshPersonalStats()">🔄 刷新</button>
+                <h3 id="personal-bill-title" style="margin:0; color:#d35400;">個人帳單明細</h3>
+                <button class="btn btn-refresh" onclick="refreshPersonalStats()">🔄 刷新明細</button>
             </div>
-            <div id="personal-stats-container">計算中...</div>
+            <div id="personal-stats-container" style="margin-top:15px;">計算中...</div>
         </div>
 
-        <div id="admin-stats-box" class="card full-width hidden">
+        <div id="admin-section" class="card full-width hidden" style="border-top: 4px solid var(--danger-color);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; color:var(--danger-color);">⚙️ 管理員對帳中心</h3>
+                <h3 style="margin:0; color:var(--danger-color);">⚙️ 全員工月度對帳報告 (管理員權限)</h3>
                 <div>
-                    <button class="btn btn-excel" onclick="exportToCSV()">📥 匯出 Excel</button>
-                    <button class="btn btn-refresh" style="background:var(--danger-color);" onclick="refreshAdminStats()">🔄 刷新數據</button>
+                    <button class="btn btn-excel" onclick="exportToCSV()">📥 匯出 Excel (CSV)</button>
+                    <button class="btn btn-refresh" style="background:var(--danger-color)" onclick="refreshAdminStats()">🔄 刷新全員數據</button>
                 </div>
             </div>
-            <div id="admin-meal-container">讀取中...</div>
+            <div class="admin-table-wrapper" id="admin-table-container">
+                <p style="color:#999;">正在載入資料庫數據...</p>
+            </div>
         </div>
     </div>
 
-    <a href="#" class="logout-link" onclick="logout()">🚪 安全登出系統</a>
+    <a href="#" class="logout-btn" onclick="logout()">🚪 安全登出系統</a>
 </div>
 
 <script src="js/supabase.js"></script>
 <script>
+    // 預設價格清單
     const mealPrices = { "排骨飯": 120, "雞排飯": 120, "雞腿飯": 130, "素食便當": 70 };
-    
-    // 從資料庫抓到的正確資訊
-    const userName = localStorage.getItem('userName');
+
+    // 1. 身分驗證與基礎資料讀取
     const userEmail = localStorage.getItem('userEmail');
+    const userName = localStorage.getItem('userName'); // 這裡抓到的是資料庫的 full_name
     const userRole = localStorage.getItem('userRole');
     const employeeId = localStorage.getItem('employeeId');
+    const department = localStorage.getItem('department');
 
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-
-    if (!userEmail) {
+    // 安全檢查：若沒登入資訊則踢回首頁
+    if (!userEmail || !userName) {
         window.location.href = "index.html";
-    } else {
-        // 更新 UI
-        document.getElementById('welcome-name').innerText = userName;
-        document.getElementById('display-id').innerText = employeeId;
-        document.getElementById('display-email').innerText = userEmail;
-        document.getElementById('today-date-label').innerText = `今天 ${now.getFullYear()}年${currentMonth}月${now.getDate()}日 點餐：`;
-        document.getElementById('personal-bill-title').innerText = `📅 ${userName} 的 ${currentMonth}月 帳單明細`;
+    }
 
+    // 2. 初始化頁面顯示
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+
+    window.onload = function() {
+        // 設定個人歡迎詞
+        document.getElementById('welcome-text').innerText = `你好，${userName}！歡迎回來`;
+        document.getElementById('display-id').innerText = employeeId || '無工號';
+        document.getElementById('display-dept').innerText = department || '未設定';
+        document.getElementById('display-email').innerText = userEmail;
+        document.getElementById('display-role').innerText = userRole === 'admin' ? '系統管理員' : '一般員工';
+
+        // 設定動態標題
+        document.getElementById('today-title').innerText = `今天 ${year}年${month}月${day}日 點餐登記`;
+        document.getElementById('personal-bill-title').innerText = `📅 ${userName} 的 ${month}月 購餐帳單`;
+
+        // 權限判斷
         if (userRole === 'admin') {
-            document.getElementById('admin-stats-box').classList.remove('hidden');
+            document.getElementById('admin-section').classList.remove('hidden');
             refreshAdminStats();
         }
         refreshPersonalStats();
-    }
+    };
 
-    // [購餐登記] - 使用資料庫的真實姓名
+    // 3. 購餐登記邏輯
     async function orderMeal() {
         const meal = document.getElementById('meal-select').value;
         const { error } = await _supabase.from('meal_orders').insert([{ 
-            user_name: userName, 
+            user_name: userName, // 使用資料庫中的真實姓名
             user_email: userEmail, 
             meal_option: meal 
         }]);
-        if (error) alert("登記失敗");
-        else {
-            alert("✅ 已成功登記");
+
+        if (error) {
+            alert("登記失敗，請檢查網路連線");
+        } else {
+            alert(`✅ ${userName}，已成功登記「${meal}」`);
             refreshPersonalStats();
             if (userRole === 'admin') refreshAdminStats();
         }
     }
 
-    // [個人統計]
+    // 4. 個人月度帳單統計
     async function refreshPersonalStats() {
         const container = document.getElementById('personal-stats-container');
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-        const { data } = await _supabase.from('meal_orders').select('meal_option')
-            .eq('user_email', userEmail).gte('created_at', monthStart);
+        const monthStart = new Date(year, now.getMonth(), 1).toISOString();
 
-        if (!data || data.length === 0) {
-            container.innerHTML = "<p style='color:#999'>本月尚無資料</p>";
-            return;
-        }
-
-        let stats = {}, total = 0;
-        data.forEach(d => {
-            stats[d.meal_option] = (stats[d.meal_option] || 0) + 1;
-            total += (mealPrices[d.meal_option] || 0);
-        });
-
-        let listHtml = Object.entries(stats).map(([n, c]) => `
-            <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f9f9f9;">
-                <span>${n}</span><span>${c} 次</span>
-            </div>`).join('');
-            
-        container.innerHTML = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px; margin-top:15px;">
-            <div>${listHtml}</div>
-            <div style="text-align:right;"><span style="color:#666;">本月合計：</span><div style="font-size:36px; font-weight:bold; color:#d35400;">$${total}</div></div>
-        </div>`;
-    }
-
-    // [管理員全體對帳]
-    async function refreshAdminStats() {
-        const container = document.getElementById('admin-meal-container');
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-        const { data, error } = await _supabase.from('meal_orders').select('*').gte('created_at', monthStart);
+        const { data, error } = await _supabase.from('meal_orders')
+            .select('meal_option')
+            .eq('user_email', userEmail)
+            .gte('created_at', monthStart);
 
         if (error || !data || data.length === 0) {
-            container.innerHTML = "<p style='padding:20px; color:#999;'>暫無資料</p>";
+            container.innerHTML = "<p style='color:#999'>本月尚無任何訂購紀錄。</p>";
             return;
         }
 
-        const userMap = {};
-        data.forEach(order => {
-            const email = order.user_email;
-            if (!userMap[email]) {
-                userMap[email] = { name: order.user_name, meals: {}, total: 0 };
-            }
-            const meal = order.meal_option;
-            userMap[email].meals[meal] = (userMap[email].meals[meal] || 0) + 1;
-            userMap[email].total += (mealPrices[meal] || 0);
+        let stats = {};
+        let totalMoney = 0;
+        data.forEach(item => {
+            stats[item.meal_option] = (stats[item.meal_option] || 0) + 1;
+            totalMoney += (mealPrices[item.meal_option] || 0);
         });
 
-        let tableHtml = `<table class="admin-table"><thead><tr><th>姓名</th><th>Email</th><th>明細</th><th>總額</th></tr></thead><tbody>`;
-        let grandTotal = 0;
-        for (const email in userMap) {
-            const u = userMap[email];
-            const detail = Object.entries(u.meals).map(([m, c]) => `${m}x${c}`).join(', ');
-            tableHtml += `<tr><td><strong>${u.name}</strong></td><td style="color:#888;">${email}</td><td>${detail}</td><td style="font-weight:bold; color:#d35400;">$${u.total}</td></tr>`;
-            grandTotal += u.total;
+        let listHtml = Object.entries(stats).map(([name, count]) => `
+            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f2f2f2;">
+                <span>${name}</span>
+                <span style="font-weight:bold;">${count} 次</span>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:50px;">
+                <div>${listHtml}</div>
+                <div style="text-align:right;">
+                    <span style="font-size:14px; color:#888;">本月累計應付金額</span>
+                    <div style="font-size:38px; font-weight:bold; color:#d35400;">$${totalMoney}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 5. 管理員：全體員工對帳邏輯
+    async function refreshAdminStats() {
+        const container = document.getElementById('admin-table-container');
+        const monthStart = new Date(year, now.getMonth(), 1).toISOString();
+
+        const { data, error } = await _supabase.from('meal_orders')
+            .select('user_name, user_email, meal_option')
+            .gte('created_at', monthStart);
+
+        if (error || !data || data.length === 0) {
+            container.innerHTML = "<p style='padding:20px; color:#999;'>本月目前無員工訂購資料。</p>";
+            return;
         }
-        tableHtml += `</tbody></table><div class="total-highlight">公司月結：$${grandTotal}</div>`;
+
+        const userSummary = {};
+        data.forEach(order => {
+            const email = order.user_email;
+            if (!userSummary[email]) {
+                userSummary[email] = { name: order.user_name, meals: {}, total: 0 };
+            }
+            const meal = order.meal_option;
+            userSummary[email].meals[meal] = (userSummary[email].meals[meal] || 0) + 1;
+            userSummary[email].total += (mealPrices[meal] || 0);
+        });
+
+        let tableHtml = `<table class="admin-table"><thead><tr><th>員工姓名</th><th>電子郵件</th><th>購餐明細</th><th>本月總金額</th></tr></thead><tbody>`;
+        let companyTotal = 0;
+
+        for (const email in userSummary) {
+            const u = userSummary[email];
+            const detailStr = Object.entries(u.meals).map(([m, c]) => `${m}x${c}`).join(', ');
+            tableHtml += `
+                <tr>
+                    <td><strong>${u.name}</strong></td>
+                    <td style="color:#777;">${email}</td>
+                    <td>${detailStr}</td>
+                    <td style="font-weight:bold; color:#d35400;">$${u.total}</td>
+                </tr>`;
+            companyTotal += u.total;
+        }
+
+        tableHtml += `</tbody></table><div class="total-row">全公司本月總結：$${companyTotal}</div>`;
         container.innerHTML = tableHtml;
     }
 
-    // [匯出 CSV]
+    // 6. 匯出 Excel (CSV) 功能
     function exportToCSV() {
         const rows = document.querySelectorAll(".admin-table tr");
-        if (rows.length === 0) return alert("無資料");
-        let csv = "\ufeff姓名,Email,明細,總計\n";
+        if (rows.length <= 1) return alert("目前無數據可供匯出");
+
+        let csvContent = "\ufeff員工姓名,電子郵件,購餐明細,本月總金額\n";
         document.querySelectorAll(".admin-table tbody tr").forEach(row => {
             const cols = row.querySelectorAll("td");
-            const rowData = Array.from(cols).map(c => `"${c.innerText.replace(/"/g, '""')}"`);
-            csv += rowData.join(",") + "\n";
+            const data = Array.from(cols).map(c => `"${c.innerText.replace(/"/g, '""')}"`).join(",");
+            csvContent += data + "\n";
         });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `結帳報表_${currentMonth}月.csv`;
+        link.download = `員工對帳單_${month}月.csv`;
         link.click();
     }
 
-    function logout() { localStorage.clear(); window.location.href = "index.html"; }
+    function logout() {
+        if(confirm("確定要登出系統嗎？")) {
+            localStorage.clear();
+            window.location.href = "index.html";
+        }
+    }
 </script>
 </body>
 </html>
