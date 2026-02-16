@@ -6,55 +6,34 @@
     <title>企業系統 - 登入</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --primary-color: #4a90e2;
-            --bg-color: #f0f2f5;
-        }
-
+        :root { --primary-color: #4a90e2; --bg-color: #f0f2f5; }
         body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            background: var(--bg-color); 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            margin: 0; 
+            font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg-color); 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; margin: 0; 
         }
-
         .login-container { 
-            background: white; 
-            padding: 40px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
+            background: white; padding: 40px; border-radius: 16px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center;
         }
-
         input { 
             width: 100%; padding: 12px; margin: 10px 0; 
-            border: 1px solid #ddd; border-radius: 8px;
-            box-sizing: border-box; font-size: 16px;
+            border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px;
         }
-
         .btn-login { 
-            width: 100%; padding: 15px; margin-top: 10px; 
-            border: none; border-radius: 8px; cursor: pointer; 
-            font-size: 16px; font-weight: bold; color: white;
-            background: var(--primary-color);
-            transition: all 0.2s;
+            width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; 
+            cursor: pointer; font-size: 16px; font-weight: bold; color: white;
+            background: var(--primary-color); transition: all 0.2s;
         }
-
         .btn-login:hover { opacity: 0.9; transform: translateY(-2px); }
         h2 { color: #333; margin-bottom: 25px; }
-        .logo { font-size: 50px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div class="login-container">
-    <div class="logo">🚀</div>
-    <h2>企業綜合管理系統</h2>
+    <div style="font-size: 50px; margin-bottom: 10px;">🏢</div>
+    <h2>員工管理系統</h2>
     
     <input type="email" id="email" placeholder="電子郵件">
     <input type="password" id="password" placeholder="密碼">
@@ -62,11 +41,9 @@
     <button class="btn-login" onclick="handleLogin()">安全登入</button>
     
     <p style="font-size: 12px; color: #999; margin-top: 20px;">
-        提示：管理員帳號請包含 "admin" 字眼
+        管理員請使用包含 "admin" 的 Email 登入
     </p>
 </div>
-
-<script src="js/supabase.js"></script>
 
 <script>
     async function handleLogin() {
@@ -74,18 +51,20 @@
         const password = document.getElementById('password').value;
 
         if (!email || !password) {
-            alert("請完整輸入帳號密碼");
+            alert("請輸入帳號與密碼");
             return;
         }
 
-        // 雖然目前是模擬登入，但我們將資料存入 localStorage 供後續頁面使用
+        // 自動從 Email 提取名稱 (例如: jack@test.com -> Jack)
+        const autoName = email.split('@')[0];
+
+        // 儲存至 localStorage
         localStorage.setItem('userEmail', email);
+        localStorage.setItem('userName', autoName); // 暫時以 Email 前綴為名
         
-        // 簡單權限判斷：是否包含 admin
         const isAdmin = email.toLowerCase().includes('admin');
         localStorage.setItem('userRole', isAdmin ? 'admin' : 'staff');
 
-        // 跳轉到主控台頁面
         window.location.href = "dashboard.html";
     }
 </script>
