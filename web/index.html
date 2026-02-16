@@ -3,70 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業系統 - 登入</title>
+    <title>企業管理系統 - 員工登入</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary-color: #4a90e2; --bg-color: #f0f2f5; }
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg-color); 
-            display: flex; justify-content: center; align-items: center; 
-            height: 100vh; margin: 0; 
+        :root {
+            --primary-color: #4a90e2;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
-        .login-container { 
-            background: white; padding: 40px; border-radius: 16px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center;
+
+        body {
+            font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif;
+            background: var(--bg-gradient);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
         }
-        input { 
-            width: 100%; padding: 12px; margin: 10px 0; 
-            border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px;
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
         }
-        .btn-login { 
-            width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; 
-            cursor: pointer; font-size: 16px; font-weight: bold; color: white;
-            background: var(--primary-color); transition: all 0.2s;
+
+        .login-card h2 {
+            margin-bottom: 10px;
+            color: #333;
         }
-        .btn-login:hover { opacity: 0.9; transform: translateY(-2px); }
-        h2 { color: #333; margin-bottom: 25px; }
+
+        .login-card p {
+            color: #777;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 8px rgba(74, 144, 226, 0.2);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            background-color: #357abd;
+            transform: translateY(-1px);
+        }
+
+        .footer-text {
+            margin-top: 25px;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        /* 簡單的載入動畫樣式 */
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-<div class="login-container">
-    <div style="font-size: 50px; margin-bottom: 10px;">🏢</div>
-    <h2>員工管理系統</h2>
-    
-    <input type="email" id="email" placeholder="電子郵件">
-    <input type="password" id="password" placeholder="密碼">
-    
-    <button class="btn-login" onclick="handleLogin()">安全登入</button>
-    
-    <p style="font-size: 12px; color: #999; margin-top: 20px;">
-        管理員請使用包含 "admin" 的 Email 登入
-    </p>
+<div class="login-card" id="login-box">
+    <h2>🏢 企業員工入口</h2>
+    <p>請輸入您的員工帳號以存取系統</p>
+
+    <div class="input-group">
+        <label>電子郵件 (Email)</label>
+        <input type="email" id="email" placeholder="example@company.com" required>
+    </div>
+
+    <div class="input-group">
+        <label>密碼 (Password)</label>
+        <input type="password" id="password" placeholder="請輸入密碼" required>
+    </div>
+
+    <button class="btn-login" onclick="handleLogin()">登入系統</button>
+
+    <div class="footer-text">
+        &copy; 2024 企業管理系統 版權所有
+    </div>
 </div>
 
+<script src="js/supabase.js"></script>
+
 <script>
+    // 檢查是否已經登入過，有的話直接導向 dashboard
+    if (localStorage.getItem('userEmail')) {
+        window.location.href = "dashboard.html";
+    }
+
     async function handleLogin() {
-        const email = document.getElementById('email').value;
+        const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
+        const loginBox = document.getElementById('login-box');
 
         if (!email || !password) {
-            alert("請輸入帳號與密碼");
+            alert("請填寫完整的 Email 與密碼");
             return;
         }
 
-        // 自動從 Email 提取名稱 (例如: jack@test.com -> Jack)
-        const autoName = email.split('@')[0];
+        // 加上載入狀態
+        loginBox.classList.add('loading');
 
-        // 儲存至 localStorage
-        localStorage.setItem('userEmail', email);
-        localStorage.setItem('userName', autoName); // 暫時以 Email 前綴為名
-        
-        const isAdmin = email.toLowerCase().includes('admin');
-        localStorage.setItem('userRole', isAdmin ? 'admin' : 'staff');
+        try {
+            // 1. 先進行 Supabase 身份驗證 (Auth)
+            // 注意：這裡假設您已經在 Supabase Auth 建立了帳號
+            const { data: authData, error: authError } = await _supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
 
-        window.location.href = "dashboard.html";
+            if (authError) {
+                throw new Error("登入失敗：帳號或密碼錯誤");
+            }
+
+            // 2. 登入成功後，去真實的「員工基本資料庫 (employees)」抓取正確姓名與工號
+            const { data: empData, error: empError } = await _supabase
+                .from('employees')
+                .select('employee_id, full_name, role, department')
+                .eq('email', email)
+                .single();
+
+            if (empError || !empData) {
+                // 如果 Auth 過了但 employees 表格沒資料，可能是資料庫沒建立好
+                console.error("Employee data not found:", empError);
+                // 應急處理：如果沒資料，暫時用 email 當名稱，或報錯
+                localStorage.setItem('userEmail', email);
+                localStorage.setItem('userName', email.split('@')[0]);
+                localStorage.setItem('userRole', 'staff');
+                localStorage.setItem('employeeId', 'N/A');
+            } else {
+                // 3. 抓到真實資料，存入 localStorage 供 dashboard 使用
+                localStorage.setItem('userEmail', email);
+                localStorage.setItem('userName', empData.full_name); // 這就是你要的真實姓名
+                localStorage.setItem('userRole', empData.role);      // staff 或 admin
+                localStorage.setItem('employeeId', empData.employee_id);
+                localStorage.setItem('department', empData.department);
+            }
+
+            // 跳轉到主頁面
+            window.location.href = "dashboard.html";
+
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            loginBox.classList.remove('loading');
+        }
     }
+
+    // 支援按下 Enter 鍵登入
+    document.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            handleLogin();
+        }
+    });
 </script>
 
 </body>

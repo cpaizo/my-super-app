@@ -7,42 +7,27 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
-            --primary-color: #4a90e2;
-            --secondary-color: #67c23a;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --excel-color: #27ae60;
-            --bg-color: #f4f7f6;
+            --primary-color: #4a90e2; --secondary-color: #67c23a;
+            --warning-color: #f39c12; --danger-color: #e74c3c;
+            --excel-color: #27ae60; --bg-color: #f4f7f6;
         }
-
         body { font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
         .container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .tag { background: #eef2f7; padding: 6px 15px; border-radius: 50px; font-size: 13px; color: #555; font-weight: 500; }
-
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f0f2f5; padding-bottom: 15px; }
+        .tag { background: #eef2f7; padding: 6px 15px; border-radius: 50px; font-size: 13px; color: #555; }
         .order-card { background: #fff; padding: 20px; border-radius: 15px; border: 2px solid #eef2f7; margin-bottom: 25px; text-align: center; }
         .meal-select { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; width: 280px; margin-right: 10px; }
-        
         .btn { padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; color: white; transition: 0.2s; }
-        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-meal { background: var(--secondary-color); }
         .btn-excel { background: var(--excel-color); }
         .btn-refresh { background: #95a5a6; padding: 5px 10px; font-size: 12px; }
-
         .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .card { background: white; border: 1px solid #f0f0f0; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         .full-width { grid-column: span 2; }
-        
         .admin-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
         .admin-table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #eee; }
         .admin-table td { padding: 12px; border-bottom: 1px solid #eee; }
-        .total-highlight { font-size: 20px; font-weight: bold; color: var(--danger-color); text-align: right; margin-top: 20px; }
-
-        .bar-bg { background: #eee; border-radius: 10px; height: 8px; width: 100%; margin-top: 5px; }
-        .bar-fill { height: 100%; background: var(--warning-color); border-radius: 10px; transition: 0.6s; }
-
-        .hidden { display: none !important; }
+        .total-highlight { font-size: 22px; font-weight: bold; color: var(--danger-color); text-align: right; margin-top: 20px; }
         .logout-link { color: #aaa; text-decoration: none; font-size: 13px; display: block; text-align: center; margin-top: 30px; }
     </style>
 </head>
@@ -50,15 +35,17 @@
 
 <div class="container">
     <div class="header">
-        <h2 style="margin:0;">你好，<span id="welcome-name" style="color:var(--primary-color);">員工</span>！歡迎回來</h2>
         <div>
-            <span class="tag" id="display-name">載入中...</span>
-            <span class="tag" id="display-email">載入中...</span>
+            <h2 style="margin:0;">你好，<span id="welcome-name" style="color:var(--primary-color);">讀取中...</span></h2>
+            <p style="margin:5px 0 0 0; color:#888; font-size:14px;">工號：<span id="display-id">---</span></p>
+        </div>
+        <div>
+            <span class="tag" id="display-email">Email</span>
         </div>
     </div>
 
     <div class="order-card">
-        <span id="today-date-label" style="font-size: 18px; font-weight: bold; margin-right: 15px;">今天點餐：</span>
+        <span id="today-date-label" style="font-size: 18px; font-weight: bold; margin-right: 15px;">日期加載中...</span>
         <select id="meal-select" class="meal-select">
             <option value="排骨飯">排骨飯 ($120)</option>
             <option value="雞排飯">雞排飯 ($120)</option>
@@ -71,29 +58,21 @@
     <div class="dashboard-grid">
         <div class="card full-width" style="background: #fffdf0; border-color: #fbe6c2;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 id="personal-bill-title" style="margin:0; color:#d35400;">員工的本月購餐帳單</h3>
-                <button class="btn btn-refresh" onclick="refreshPersonalStats()">🔄 刷新帳單</button>
+                <h3 id="personal-bill-title" style="margin:0; color:#d35400;">我的購餐帳單</h3>
+                <button class="btn btn-refresh" onclick="refreshPersonalStats()">🔄 刷新</button>
             </div>
             <div id="personal-stats-container">計算中...</div>
         </div>
 
-        <div class="card">
-            <h3>📊 海報投票戰況</h3>
-            <button class="btn" style="background:var(--warning-color); width:100%; margin-bottom:15px;" onclick="votePoster()">🖼️ 參與海報投票</button>
-            <div id="vote-bars">載入中...</div>
-        </div>
-
         <div id="admin-stats-box" class="card full-width hidden">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; color:var(--danger-color);">⚙️ 全員工月度對帳清單 (管理員限定)</h3>
+                <h3 style="margin:0; color:var(--danger-color);">⚙️ 管理員對帳中心</h3>
                 <div>
-                    <button class="btn btn-excel" onclick="exportToCSV()">📥 匯出 Excel (CSV)</button>
+                    <button class="btn btn-excel" onclick="exportToCSV()">📥 匯出 Excel</button>
                     <button class="btn btn-refresh" style="background:var(--danger-color);" onclick="refreshAdminStats()">🔄 刷新數據</button>
                 </div>
             </div>
-            <div id="admin-meal-container">
-                <p style="color:#999; margin-top:15px;">讀取中...</p>
-            </div>
+            <div id="admin-meal-container">讀取中...</div>
         </div>
     </div>
 
@@ -103,47 +82,44 @@
 <script src="js/supabase.js"></script>
 <script>
     const mealPrices = { "排骨飯": 120, "雞排飯": 120, "雞腿飯": 130, "素食便當": 70 };
+    
+    // 從資料庫抓到的正確資訊
     const userName = localStorage.getItem('userName');
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
+    const employeeId = localStorage.getItem('employeeId');
 
-    // 取得當前日期資訊
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1; // 月份從0開始
-    const date = now.getDate();
+    const currentMonth = now.getMonth() + 1;
 
     if (!userEmail) {
         window.location.href = "index.html";
     } else {
-        // 設定網頁顯示文字
+        // 更新 UI
         document.getElementById('welcome-name').innerText = userName;
-        document.getElementById('display-name').innerText = "👤 " + userName;
-        document.getElementById('display-email').innerText = "📧 " + userEmail;
-        
-        // 修改標題：今天 + 年月日
-        document.getElementById('today-date-label').innerText = `今天 ${year}年${month}月${date}日 點餐：`;
-        
-        // 修改標題：員工姓名 + 月份
-        document.getElementById('personal-bill-title').innerText = `📅 ${userName} 的 ${month}月 購餐帳單`;
+        document.getElementById('display-id').innerText = employeeId;
+        document.getElementById('display-email').innerText = userEmail;
+        document.getElementById('today-date-label').innerText = `今天 ${now.getFullYear()}年${currentMonth}月${now.getDate()}日 點餐：`;
+        document.getElementById('personal-bill-title').innerText = `📅 ${userName} 的 ${currentMonth}月 帳單明細`;
 
         if (userRole === 'admin') {
             document.getElementById('admin-stats-box').classList.remove('hidden');
             refreshAdminStats();
         }
         refreshPersonalStats();
-        refreshVoteDashboard();
     }
 
-    // [購餐功能]
+    // [購餐登記] - 使用資料庫的真實姓名
     async function orderMeal() {
         const meal = document.getElementById('meal-select').value;
         const { error } = await _supabase.from('meal_orders').insert([{ 
-            user_name: userName, user_email: userEmail, meal_option: meal 
+            user_name: userName, 
+            user_email: userEmail, 
+            meal_option: meal 
         }]);
-        if (error) alert("系統錯誤");
+        if (error) alert("登記失敗");
         else {
-            alert("✅ 登記成功！");
+            alert("✅ 已成功登記");
             refreshPersonalStats();
             if (userRole === 'admin') refreshAdminStats();
         }
@@ -157,7 +133,7 @@
             .eq('user_email', userEmail).gte('created_at', monthStart);
 
         if (!data || data.length === 0) {
-            container.innerHTML = "<p style='color:#999'>本月尚無紀錄。</p>";
+            container.innerHTML = "<p style='color:#999'>本月尚無資料</p>";
             return;
         }
 
@@ -172,25 +148,20 @@
                 <span>${n}</span><span>${c} 次</span>
             </div>`).join('');
             
-        container.innerHTML = `
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px; margin-top:15px;">
-                <div>${listHtml}</div>
-                <div style="text-align:right;">
-                    <span style="font-size:14px; color:#666;">本月結算金額：</span>
-                    <div style="font-size:36px; font-weight:bold; color:#d35400;">$${total}</div>
-                </div>
-            </div>`;
+        container.innerHTML = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px; margin-top:15px;">
+            <div>${listHtml}</div>
+            <div style="text-align:right;"><span style="color:#666;">本月合計：</span><div style="font-size:36px; font-weight:bold; color:#d35400;">$${total}</div></div>
+        </div>`;
     }
 
-    // [管理員統計]
+    // [管理員全體對帳]
     async function refreshAdminStats() {
         const container = document.getElementById('admin-meal-container');
         const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-        const { data, error } = await _supabase.from('meal_orders')
-            .select('user_name, user_email, meal_option').gte('created_at', monthStart);
+        const { data, error } = await _supabase.from('meal_orders').select('*').gte('created_at', monthStart);
 
         if (error || !data || data.length === 0) {
-            container.innerHTML = "<p style='padding:20px; color:#999;'>查無本月資料</p>";
+            container.innerHTML = "<p style='padding:20px; color:#999;'>暫無資料</p>";
             return;
         }
 
@@ -198,14 +169,14 @@
         data.forEach(order => {
             const email = order.user_email;
             if (!userMap[email]) {
-                userMap[email] = { name: order.user_name || email.split('@')[0], meals: {}, total: 0 };
+                userMap[email] = { name: order.user_name, meals: {}, total: 0 };
             }
             const meal = order.meal_option;
             userMap[email].meals[meal] = (userMap[email].meals[meal] || 0) + 1;
             userMap[email].total += (mealPrices[meal] || 0);
         });
 
-        let tableHtml = `<table class="admin-table"><thead><tr><th>員工姓名</th><th>Email</th><th>訂購明細</th><th>本月總計</th></tr></thead><tbody>`;
+        let tableHtml = `<table class="admin-table"><thead><tr><th>姓名</th><th>Email</th><th>明細</th><th>總額</th></tr></thead><tbody>`;
         let grandTotal = 0;
         for (const email in userMap) {
             const u = userMap[email];
@@ -213,15 +184,15 @@
             tableHtml += `<tr><td><strong>${u.name}</strong></td><td style="color:#888;">${email}</td><td>${detail}</td><td style="font-weight:bold; color:#d35400;">$${u.total}</td></tr>`;
             grandTotal += u.total;
         }
-        tableHtml += `</tbody></table><div class="total-highlight">全公司本月總結算：$${grandTotal}</div>`;
+        tableHtml += `</tbody></table><div class="total-highlight">公司月結：$${grandTotal}</div>`;
         container.innerHTML = tableHtml;
     }
 
     // [匯出 CSV]
     function exportToCSV() {
         const rows = document.querySelectorAll(".admin-table tr");
-        if (rows.length === 0) return alert("沒有資料可匯出");
-        let csv = "\ufeff員工姓名,Email,訂購明細,本月總計\n";
+        if (rows.length === 0) return alert("無資料");
+        let csv = "\ufeff姓名,Email,明細,總計\n";
         document.querySelectorAll(".admin-table tbody tr").forEach(row => {
             const cols = row.querySelectorAll("td");
             const rowData = Array.from(cols).map(c => `"${c.innerText.replace(/"/g, '""')}"`);
@@ -230,29 +201,8 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `員工購餐統計_${new Date().getMonth()+1}月.csv`;
+        link.download = `結帳報表_${currentMonth}月.csv`;
         link.click();
-    }
-
-    // [投票]
-    async function votePoster() {
-        const id = prompt("投票給 A, B, 或 C?").toUpperCase();
-        if (['A','B','C'].includes(id)) {
-            await _supabase.from('poster_votes').insert([{ user_name: userName, voter_email: userEmail, poster_id: id }]);
-            refreshVoteDashboard();
-        }
-    }
-
-    async function refreshVoteDashboard() {
-        const { data } = await _supabase.from('poster_votes').select('poster_id');
-        const counts = { 'A':0, 'B':0, 'C':0 };
-        data?.forEach(v => counts[v.poster_id]++);
-        const total = data?.length || 1;
-        document.getElementById('vote-bars').innerHTML = Object.keys(counts).map(key => `
-            <div style="margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; font-size:13px;"><span>海報 ${key}</span><span>${counts[key]} 票</span></div>
-                <div class="bar-bg"><div class="bar-fill" style="width:${(counts[key]/total)*100}%"></div></div>
-            </div>`).join('');
     }
 
     function logout() { localStorage.clear(); window.location.href = "index.html"; }
