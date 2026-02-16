@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系統控制台 - Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #67c23a;
+            --warning-color: #e6a23c;
+            --danger-color: #f56c6c;
+            --bg-color: #f0f2f5;
+        }
+
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; }
+        
+        /* 系統按鈕區域 */
+        .system-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        
+        .btn { 
+            padding: 15px; border: none; border-radius: 10px; cursor: pointer; 
+            font-size: 16px; font-weight: bold; color: white; transition: all 0.3s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:hover { transform: translateY(-3px); filter: brightness(1.1); }
+        .btn-checkin { background: var(--primary-color); }
+        .btn-vote { background: var(--warning-color); }
+        .btn-meal { background: var(--secondary-color); }
+        .btn-admin { background: var(--danger-color); }
+
+        /* 看板樣式 */
+        .dashboard-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; }
+        .stats-box { background: #fdfdfd; border: 1px solid #eee; padding: 20px; border-radius: 12px; text-align: left; }
+        .bar-container { background: #eee; border-radius: 5px; height: 10px; width: 100%; margin: 8px 0 15px 0; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--warning-color); transition: width 0.8s; }
+        
+        /* 統計表格樣式 */
+        .stats-list { list-style: none; padding: 0; margin: 10px 0; }
+        .stats-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #eee; }
+        .total-row { font-weight: bold; border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; }
+
+        .hidden { display: none !important; }
+        .user-tag { background: #eef2f7; padding: 5px 12px; border-radius: 20px; font-size: 14px; color: #555; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>🚀 企業管理系統</h2>
+        <span class="user-tag" id="display-email">載入中...</span>
+    </div>
+    
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+    <div class="system-grid">
+        <button class="btn btn-checkin" onclick="alert('打卡功能開發中')">⏰ 快速打卡</button>
+        <button class="btn btn-vote" onclick="votePoster()">🖼️ 海報投票</button>
+        <button class="btn btn-meal" onclick="orderMeal()">🍱 購餐登記</button>
+        <button id="admin-btn" class="btn btn-admin hidden" onclick="refreshAdminStats()">⚙️ 刷新購餐統計</button>
+    </div>
+
+    <div class="dashboard-layout">
+        <div class="stats-box">
+            <h3 style="margin-top: 0;">📊 海報投票戰況</h3>
+            <div id="vote-bars">載入中...</div>
+        </div>
+
+        <div id="admin-stats-box" class="stats-box hidden">
+            <h3 style="margin-top: 0; color: var(--danger-color);">🍱 今日購餐統計</h3>
+            <div id="meal-list-container">
+                <p style="color: #999;">點擊上方「刷新」按鈕獲取數據</p>
+            </div>
+        </div>
+    </div>
+
+    <p style="margin-top: 30px;"><a href="#" onclick="logout()" style="color: #999; text-decoration: none; font-size: 14px;">安全登出系統</a></p>
+</div>
+
+<script src="js/supabase.js"></script>
+<script>
+    const userEmail = localStorage.getItem('userEmail');
+    const userRole = localStorage.getItem('userRole');
+
+    if (!userEmail) {
+        window.location.href = "index.html";
+    } else {
+        document.getElementById('display-email').innerText = "👤 " + userEmail;
+        if (userRole === 'admin') {
+            document.getElementById('admin-btn').classList.remove('hidden');
+            document.getElementById('admin-stats-box').classList.remove('hidden');
+            refreshAdminStats(); // 管理員登入自動跑一次統計
+        }
+        refreshDashboard();
+    }
+
+    // 1. 購餐登記
+    async function orderMeal() {
+        const meal = prompt("🍱 請輸入今日餐點名稱：");
+        if (!meal) return;
+        const { error } = await _supabase.from('meal_orders').insert([{ user_email: userEmail, meal_option: meal.trim() }]);
+        if (error) alert("登記失敗"); else {
+            alert("✅ 登記成功！");
+            if (userRole === 'admin') refreshAdminStats();
+        }
+    }
+
+    // 2. 海報投票
+    async function votePoster() {
+        const id = prompt("🖼️ 請輸入投票編號 (A/B/C)：").toUpperCase();
+        if (!['A', 'B', 'C'].includes(id)) return alert("請輸入正確編號");
+        const { error } = await _supabase.from('poster_votes').insert([{ voter_email: userEmail, poster_id: id }]);
+        if (error) alert("投票失敗"); else { refreshDashboard(); }
+    }
+
+    // 3. 刷新投票看板
+    async function refreshDashboard() {
+        const { data, error } = await _supabase.from('poster_votes').select('poster_id');
+        if (error) return;
+        const counts = { 'A': 0, 'B': 0, 'C': 0 };
+        data.forEach(v => { if(counts[v.poster_id] !== undefined) counts[v.poster_id]++; });
+        const total = data.length || 1;
+
+        document.getElementById('vote-bars').innerHTML = Object.keys(counts).map(key => `
+            <div>
+                <span>海報 ${key} (${counts[key]} 票)</span>
+                <div class="bar-container"><div class="bar-fill" style="width: ${(counts[key]/total)*100}%"></div></div>
+            </div>
+        `).join('');
+    }
+
+    // 4. 管理員：刷新購餐統計表格
+    async function refreshAdminStats() {
+        const container = document.getElementById('meal-list-container');
+        const { data, error } = await _supabase.from('meal_orders').select('meal_option');
+
+        if (error) return container.innerHTML = "數據讀取錯誤";
+        
+        const stats = {};
+        data.forEach(item => {
+            const m = item.meal_option.trim();
+            stats[m] = (stats[m] || 0) + 1;
+        });
+
+        let html = '<ul class="stats-list">';
+        let total = 0;
+        for (const [name, count] of Object.entries(stats)) {
+            html += `<li class="stats-item"><span>${name}</span> <span>${count} 份</span></li>`;
+            total += count;
+        }
+        html += `</ul><div class="total-row"><span>總計</span><span>${total} 份</span></div>`;
+        container.innerHTML = html;
+    }
+
+    function logout() { localStorage.clear(); window.location.href = "index.html"; }
+</script>
+</body>
+</html>

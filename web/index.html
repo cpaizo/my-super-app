@@ -3,14 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業綜合管理系統</title>
+    <title>企業系統 - 登入</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --primary-color: #4a90e2;
-            --secondary-color: #67c23a;
-            --warning-color: #e6a23c;
-            --danger-color: #f56c6c;
             --bg-color: #f0f2f5;
         }
 
@@ -20,21 +17,19 @@
             display: flex; 
             justify-content: center; 
             align-items: center; 
-            min-height: 100vh; 
+            height: 100vh; 
             margin: 0; 
         }
 
-        .container { 
+        .login-container { 
             background: white; 
             padding: 40px; 
             border-radius: 16px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-            width: 90%;
-            max-width: 450px;
+            width: 100%;
+            max-width: 400px;
             text-align: center;
         }
-
-        .hidden { display: none; }
 
         input { 
             width: 100%; padding: 12px; margin: 10px 0; 
@@ -42,129 +37,56 @@
             box-sizing: border-box; font-size: 16px;
         }
 
-        .btn { 
-            width: 100%; padding: 15px; margin: 10px 0; 
+        .btn-login { 
+            width: 100%; padding: 15px; margin-top: 10px; 
             border: none; border-radius: 8px; cursor: pointer; 
             font-size: 16px; font-weight: bold; color: white;
-            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
+            background: var(--primary-color);
+            transition: all 0.2s;
         }
 
-        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
-        .btn-login { background: var(--primary-color); }
-        .btn-checkin { background: #5c7cfa; }
-        .btn-vote { background: var(--warning-color); }
-        .btn-meal { background: var(--secondary-color); }
-        .btn-admin { background: var(--danger-color); }
-
-        hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
-        h2 { color: #333; margin-bottom: 20px; }
-        .user-info { color: #666; font-size: 14px; margin-bottom: 20px; }
+        .btn-login:hover { opacity: 0.9; transform: translateY(-2px); }
+        h2 { color: #333; margin-bottom: 25px; }
+        .logo { font-size: 50px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="login-section">
-        <h2>🔑 系統登入</h2>
-        <input type="email" id="email" placeholder="電子郵件 (輸入 admin 開頭具管理權限)">
-        <input type="password" id="password" placeholder="密碼">
-        <button class="btn btn-login" onclick="handleLogin()">安全登入</button>
-    </div>
-
-    <div id="main-menu" class="hidden">
-        <h2 id="welcome-msg">歡迎回來</h2>
-        <div class="user-info" id="user-display"></div>
-        <hr>
-        
-        <button class="btn btn-checkin" onclick="alert('打卡功能開發中...')">
-            <span>⏰</span> 員工上班打卡
-        </button>
-
-        <button class="btn btn-vote" onclick="votePoster()">
-            <span>🖼️</span> 海報設計投票
-        </button>
-
-        <button class="btn btn-meal" onclick="orderMeal()">
-            <span>🍱</span> 購餐登記與統計
-        </button>
-
-        <div id="admin-only" class="hidden">
-            <hr>
-            <button class="btn btn-admin" onclick="showStats()">
-                <span>⚙️</span> 管理後台 (數據統計)
-            </button>
-        </div>
-        
-        <p style="margin-top: 20px;"><a href="#" onclick="location.reload()" style="color: #999; text-decoration: none; font-size: 14px;">登出系統</a></p>
-    </div>
+<div class="login-container">
+    <div class="logo">🚀</div>
+    <h2>企業綜合管理系統</h2>
+    
+    <input type="email" id="email" placeholder="電子郵件">
+    <input type="password" id="password" placeholder="密碼">
+    
+    <button class="btn-login" onclick="handleLogin()">安全登入</button>
+    
+    <p style="font-size: 12px; color: #999; margin-top: 20px;">
+        提示：管理員帳號請包含 "admin" 字眼
+    </p>
 </div>
 
+<script src="js/supabase.js"></script>
+
 <script>
-    // --- 1. Supabase 初始化 ---
-    const SUPABASE_URL = "https://efkiuxgwlzjftlqxtett.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_G2itMMa0hbauxhKrnUJtwA_XDbhELbU";
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    let currentUserEmail = "";
-
-    // --- 2. 登入邏輯 ---
-    function handleLogin() {
+    async function handleLogin() {
         const email = document.getElementById('email').value;
-        if (!email) return alert("請輸入電子郵件");
+        const password = document.getElementById('password').value;
 
-        currentUserEmail = email;
-        document.getElementById('login-section').classList.add('hidden');
-        document.getElementById('main-menu').classList.remove('hidden');
-        document.getElementById('welcome-msg').innerText = "您好，" + email.split('@')[0];
-        document.getElementById('user-display').innerText = "登入帳號: " + email;
-
-        if (email.toLowerCase().includes('admin')) {
-            document.getElementById('admin-only').classList.remove('hidden');
+        if (!email || !password) {
+            alert("請完整輸入帳號密碼");
+            return;
         }
-    }
 
-    // --- 3. 購餐登記功能 ---
-    async function orderMeal() {
-        const meal = prompt("🍱 請輸入今日餐點 (例如：雞腿便當、排骨便當):");
-        if (!meal) return;
+        // 雖然目前是模擬登入，但我們將資料存入 localStorage 供後續頁面使用
+        localStorage.setItem('userEmail', email);
+        
+        // 簡單權限判斷：是否包含 admin
+        const isAdmin = email.toLowerCase().includes('admin');
+        localStorage.setItem('userRole', isAdmin ? 'admin' : 'staff');
 
-        const { data, error } = await _supabase
-            .from('meal_orders')
-            .insert([{ user_email: currentUserEmail, meal_option: meal }]);
-
-        if (error) alert("登記失敗: " + error.message);
-        else alert("✅ 登記成功！已記錄您的餐點: " + meal);
-    }
-
-    // --- 4. 海報投票功能 ---
-    async function votePoster() {
-        const poster = prompt("🖼️ 請輸入投給哪張海報？ (請填編號：A、B 或 C):");
-        if (!poster) return;
-
-        const { data, error } = await _supabase
-            .from('poster_votes')
-            .insert([{ voter_email: currentUserEmail, poster_id: poster }]);
-
-        if (error) alert("投票失敗: " + error.message);
-        else alert("✅ 投票成功！您已投給海報 " + poster);
-    }
-
-    // --- 5. 管理員統計功能 ---
-    async function showStats() {
-        const { data: meals, error: e1 } = await _supabase.from('meal_orders').select('meal_option');
-        if (e1) return alert("讀取失敗");
-
-        // 簡單統計邏輯
-        const stats = meals.reduce((acc, curr) => {
-            acc[curr.meal_option] = (acc[curr.meal_option] || 0) + 1;
-            return acc;
-        }, {});
-
-        let result = "📊 今日購餐統計：\n";
-        for (const [name, count] of Object.entries(stats)) {
-            result += `${name}: ${count} 份\n`;
-        }
-        alert(result);
+        // 跳轉到主控台頁面
+        window.location.href = "dashboard.html";
     }
 </script>
 
