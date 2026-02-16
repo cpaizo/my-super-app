@@ -1,0 +1,12 @@
+https://supabase.com/
+my-super-app
+Database password
+
+*hP5vWEr9KJa*$3
+
+
+請把這兩串資訊複製起來，這是我們等一下要寫進 Go 程式碼的「通關密碼」：
+
+Project URL: https://efkiuxgwlzjftlqxtett.supabase.co
+
+API Key (Anon Key): sb_publishable_G2itMMa0hbauxhKrnUJtwA_XDbhELbU

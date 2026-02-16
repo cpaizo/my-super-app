@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>企業綜合管理系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -14,7 +15,7 @@
         }
 
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
             background: var(--bg-color); 
             display: flex; 
             justify-content: center; 
@@ -28,54 +29,36 @@
             padding: 40px; 
             border-radius: 16px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-            width: 100%;
-            max-width: 500px;
+            width: 90%;
+            max-width: 450px;
             text-align: center;
         }
 
         .hidden { display: none; }
 
-        /* 輸入框美化 */
         input { 
-            width: 100%; 
-            padding: 12px; 
-            margin: 10px 0; 
-            border: 1px solid #ddd; 
-            border-radius: 8px;
-            box-sizing: border-box; 
-            font-size: 16px;
+            width: 100%; padding: 12px; margin: 10px 0; 
+            border: 1px solid #ddd; border-radius: 8px;
+            box-sizing: border-box; font-size: 16px;
         }
 
-        /* 按鈕基礎樣式 */
         .btn { 
-            width: 100%; 
-            padding: 15px; 
-            margin: 10px 0; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-size: 16px; 
-            font-weight: bold;
-            transition: transform 0.2s, box-shadow 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
+            width: 100%; padding: 15px; margin: 10px 0; 
+            border: none; border-radius: 8px; cursor: pointer; 
+            font-size: 16px; font-weight: bold; color: white;
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
 
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .btn:active { transform: translateY(0); }
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .btn-login { background: var(--primary-color); }
+        .btn-checkin { background: #5c7cfa; }
+        .btn-vote { background: var(--warning-color); }
+        .btn-meal { background: var(--secondary-color); }
+        .btn-admin { background: var(--danger-color); }
 
-        /* 不同功能的按鈕顏色 */
-        .btn-login { background: var(--primary-color); color: white; }
-        .btn-checkin { background: var(--primary-color); color: white; }
-        .btn-vote { background: var(--warning-color); color: white; }
-        .btn-meal { background: var(--secondary-color); color: white; }
-        .btn-admin { background: var(--danger-color); color: white; }
-
-        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
-        
-        h2 { color: #333; margin-bottom: 25px; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
+        h2 { color: #333; margin-bottom: 20px; }
+        .user-info { color: #666; font-size: 14px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -83,32 +66,32 @@
 <div class="container">
     <div id="login-section">
         <h2>🔑 系統登入</h2>
-        <input type="email" id="email" placeholder="電子郵件">
+        <input type="email" id="email" placeholder="電子郵件 (輸入 admin 開頭具管理權限)">
         <input type="password" id="password" placeholder="密碼">
         <button class="btn btn-login" onclick="handleLogin()">安全登入</button>
     </div>
 
     <div id="main-menu" class="hidden">
         <h2 id="welcome-msg">歡迎回來</h2>
-        <p style="color: #888;">請選擇今日要操作的系統</p>
+        <div class="user-info" id="user-display"></div>
         <hr>
         
-        <button class="btn btn-checkin" onclick="alert('進入：⏰ 員工打卡系統')">
+        <button class="btn btn-checkin" onclick="alert('打卡功能開發中...')">
             <span>⏰</span> 員工上班打卡
         </button>
 
-        <button class="btn btn-vote" onclick="alert('進入：🖼️ 海報設計投票系統\n(請在各海報下方點選投票)')">
+        <button class="btn btn-vote" onclick="votePoster()">
             <span>🖼️</span> 海報設計投票
         </button>
 
-        <button class="btn btn-meal" onclick="alert('進入：🍱 今日購餐登記\n(統計時間至每日 10:30)')">
+        <button class="btn btn-meal" onclick="orderMeal()">
             <span>🍱</span> 購餐登記與統計
         </button>
 
         <div id="admin-only" class="hidden">
             <hr>
-            <button class="btn btn-admin" onclick="alert('進入：⚙️ 系統管理總台')">
-                <span>⚙️</span> 管理後台 (限管理員)
+            <button class="btn btn-admin" onclick="showStats()">
+                <span>⚙️</span> 管理後台 (數據統計)
             </button>
         </div>
         
@@ -117,22 +100,71 @@
 </div>
 
 <script>
+    // --- 1. Supabase 初始化 ---
+    const SUPABASE_URL = "https://efkiuxgwlzjftlqxtett.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_G2itMMa0hbauxhKrnUJtwA_XDbhELbU";
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let currentUserEmail = "";
+
+    // --- 2. 登入邏輯 ---
     function handleLogin() {
         const email = document.getElementById('email').value;
-        if (!email) {
-            alert("請輸入電子郵件");
-            return;
-        }
+        if (!email) return alert("請輸入電子郵件");
 
-        // 隱藏登入區，顯示主選單
+        currentUserEmail = email;
         document.getElementById('login-section').classList.add('hidden');
         document.getElementById('main-menu').classList.remove('hidden');
-        document.getElementById('welcome-msg').innerText = "您好, " + email.split('@')[0];
+        document.getElementById('welcome-msg').innerText = "您好，" + email.split('@')[0];
+        document.getElementById('user-display').innerText = "登入帳號: " + email;
 
-        // 權限判定
         if (email.toLowerCase().includes('admin')) {
             document.getElementById('admin-only').classList.remove('hidden');
         }
+    }
+
+    // --- 3. 購餐登記功能 ---
+    async function orderMeal() {
+        const meal = prompt("🍱 請輸入今日餐點 (例如：雞腿便當、排骨便當):");
+        if (!meal) return;
+
+        const { data, error } = await _supabase
+            .from('meal_orders')
+            .insert([{ user_email: currentUserEmail, meal_option: meal }]);
+
+        if (error) alert("登記失敗: " + error.message);
+        else alert("✅ 登記成功！已記錄您的餐點: " + meal);
+    }
+
+    // --- 4. 海報投票功能 ---
+    async function votePoster() {
+        const poster = prompt("🖼️ 請輸入投給哪張海報？ (請填編號：A、B 或 C):");
+        if (!poster) return;
+
+        const { data, error } = await _supabase
+            .from('poster_votes')
+            .insert([{ voter_email: currentUserEmail, poster_id: poster }]);
+
+        if (error) alert("投票失敗: " + error.message);
+        else alert("✅ 投票成功！您已投給海報 " + poster);
+    }
+
+    // --- 5. 管理員統計功能 ---
+    async function showStats() {
+        const { data: meals, error: e1 } = await _supabase.from('meal_orders').select('meal_option');
+        if (e1) return alert("讀取失敗");
+
+        // 簡單統計邏輯
+        const stats = meals.reduce((acc, curr) => {
+            acc[curr.meal_option] = (acc[curr.meal_option] || 0) + 1;
+            return acc;
+        }, {});
+
+        let result = "📊 今日購餐統計：\n";
+        for (const [name, count] of Object.entries(stats)) {
+            result += `${name}: ${count} 份\n`;
+        }
+        alert(result);
     }
 </script>
 
