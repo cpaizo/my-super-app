@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業管理系統 - 出勤打卡</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../js/supabase.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #4a90e2; --secondary-color: #67c23a;
+            --danger-color: #e74c3c; --bg-color: #f4f7f6;
+        }
+        body { font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif; background: var(--bg-color); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        
+        .time-display { font-size: 42px; font-weight: bold; color: #333; font-family: monospace; margin-bottom: 5px; }
+        .date-display { color: #888; margin-bottom: 30px; letter-spacing: 1px; }
+
+        .status-box { padding: 15px; border-radius: 12px; margin-bottom: 25px; transition: 0.3s; }
+        .in-range { background: #eaffea; color: #27ae60; border: 1px solid #c3e6cb; }
+        .out-range { background: #ffeaea; color: #e74c3c; border: 1px solid #f5c6cb; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 15px; }
+        .btn-check { padding: 18px; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; color: white; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-in { background: var(--primary-color); }
+        .btn-out { background: var(--secondary-color); }
+        .btn-check:active { transform: scale(0.98); }
+        .btn-check:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
+
+        #distance-info { font-size: 13px; color: #999; margin-top: 15px; line-height: 1.5; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid var(--primary-color); border-radius: 50%; width: 20px; height: 20px; display: inline-block; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 5px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="time-display" id="clock">00:00:00</div>
+    <div class="date-display" id="date-info">----年--月--日</div>
+
+    <div id="status-container" class="status-box out-range">
+        <span id="status-text">正在讀取定位資訊...</span>
+    </div>
+
+    <div class="btn-group">
+        <button id="btn-in" class="btn-check btn-in" onclick="doAction('check_in')" disabled>☀️ 上班打卡</button>
+        <button id="btn-out" class="btn-check btn-out" onclick="doAction('check_out')" disabled>🌙 下班打卡</button>
+    </div>
+
+    <div id="distance-info">
+        <div id="gps-loading"><div class="loading-spinner"></div> GPS 定位中心點校對中...</div>
+        <div id="location-detail" style="display:none;">
+            目前距離公司：<span id="dist-val">---</span> 公尺<br>
+            座標：<span id="coord-val">---</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    let officeConfig = { lat: 0, lng: 0, radius: 200 };
+    let userPos = { lat: 0, lng: 0 };
+    const uInfo = {
+        name: localStorage.getItem('userName'),
+        email: localStorage.getItem('userEmail')
+    };
+
+    // 1. 初始化：更新時鐘與讀取設定
+    function updateClock() {
+        const now = new Date();
+        const twTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+        document.getElementById('clock').innerText = twTime.toLocaleTimeString('zh-TW', { hour12: false });
+        document.getElementById('date-info').innerText = `${twTime.getFullYear()}年${twTime.getMonth()+1}月${twTime.getDate()}日`;
+    }
+    setInterval(updateClock, 1000);
+
+    window.onload = async function() {
+        if (!uInfo.email) { window.location.href = "index.html"; return; }
+        
+        // 從 Supabase 抓取辦公室座標
+        const { data, error } = await _supabase.from('system_config').select('value_json').eq('key', 'office_location').single();
+        if (data) {
+            officeConfig = data.value_json;
+            startTracking();
+        } else {
+            alert("無法讀取公司座標設定，請聯絡管理員。");
+        }
+    };
+
+    // 2. GPS 追蹤與距離計算
+    function startTracking() {
+        if (!navigator.geolocation) {
+            updateStatus("您的瀏覽器不支援 GPS 定位", false);
+            return;
+        }
+
+        navigator.geolocation.watchPosition(
+            (pos) => {
+                userPos.lat = pos.coords.latitude;
+                userPos.lng = pos.coords.longitude;
+                
+                const distance = calculateDistance(userPos.lat, userPos.lng, officeConfig.lat, officeConfig.lng);
+                updateUI(distance);
+            },
+            (err) => {
+                updateStatus("定位失敗，請確認開啟 GPS 權限", false);
+            },
+            { enableHighAccuracy: true }
+        );
+    }
+
+    // 哈弗辛公式計算距離 (公尺)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; // 地球半徑 (公尺)
+        const φ1 = lat1 * Math.PI/180;
+        const φ2 = lat2 * Math.PI/180;
+        const Δφ = (lat2-lat1) * Math.PI/180;
+        const Δλ = (lon2-lon1) * Math.PI/180;
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return Math.round(R * c);
+    }
+
+    // 3. UI 更新邏輯
+    function updateUI(dist) {
+        document.getElementById('gps-loading').style.display = "none";
+        document.getElementById('location-detail').style.display = "block";
+        document.getElementById('dist-val').innerText = dist;
+        document.getElementById('coord-val').innerText = `${userPos.lat.toFixed(4)}, ${userPos.lng.toFixed(4)}`;
+
+        const isInRange = dist <= officeConfig.radius;
+        if (isInRange) {
+            updateStatus("📍 您已進入打卡範圍", true);
+            document.getElementById('btn-in').disabled = false;
+            document.getElementById('btn-out').disabled = false;
+        } else {
+            updateStatus(`❌ 距離公司過遠 (${dist}m)`, false);
+            document.getElementById('btn-in').disabled = true;
+            document.getElementById('btn-out').disabled = true;
+        }
+    }
+
+    function updateStatus(text, ok) {
+        const el = document.getElementById('status-container');
+        el.className = `status-box ${ok ? 'in-range' : 'out-range'}`;
+        document.getElementById('status-text').innerText = text;
+    }
+
+    // 4. 打卡執行
+    async function doAction(type) {
+        if (!confirm(`確定要辦理${type === 'check_in' ? '上班' : '下班'}打卡嗎？`)) return;
+
+        // 連點保護
+        document.getElementById('btn-in').disabled = true;
+        document.getElementById('btn-out').disabled = true;
+
+        const { error } = await _supabase.from('attendance_logs').insert([{
+            user_email: uInfo.email,
+            user_name: uInfo.name,
+            type: type,
+            latitude: userPos.lat,
+            longitude: userPos.lng,
+            is_within_range: true,
+            device_info: navigator.userAgent
+        }]);
+
+        if (!error) {
+            alert("打卡成功！");
+            // 打卡成功後可選擇跳轉到點餐頁面
+            window.location.href = "dashboard.html";
+        } else {
+            alert("打卡失敗：" + error.message);
+            location.reload();
+        }
+    }
+</script>
+
+</body>
+</html>
