@@ -150,7 +150,7 @@
 
             if (!error) {
                 statusEl.innerHTML = `<span style="color:green">✅ 打卡成功！</span>`;
-                setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
+                setTimeout(() => { window.location.href = "portal.html"; }, 1500);
             } else {
                 console.error(error);
                 alert("寫入失敗：" + error.message);

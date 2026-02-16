@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>企業員工作業門戶</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        body { padding: 40px 20px; max-width: 800px; margin: auto; background-color: #f0f2f5; }
+        .card-link { cursor: pointer; transition: 0.3s; }
+        .card-link:hover { transform: translateY(-5px); border-color: #357ebd; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 id="user-title">歡迎回來</h1>
+        <p>請選擇您要使用的服務</p>
+    </header>
+
+    <div class="grid">
+        <article class="card-link" onclick="location.href='attendance.html'">
+            <header>📍 出勤打卡</header>
+            進行每日上下班定位簽到
+        </article>
+
+        <article class="card-link" onclick="location.href='order_system.html'">
+            <header>🍱 點餐系統</header>
+            進入企業訂餐與統計介面
+        </article>
+    </div>
+
+    <div class="grid">
+        <article class="card-link" onclick="location.href='history.html'">
+            <header>📑 出勤報表</header>
+            查看個人今日及本月紀錄
+        </article>
+
+        <article class="card-link" onclick="logout()">
+            <header>🚪 安全登出</header>
+            清除登入資訊並退出系統
+        </article>
+    </div>
+
+    <script>
+        document.getElementById('user-title').innerText = `您好，${localStorage.getItem('userName') || '同仁'}`;
+        function logout() { localStorage.clear(); window.location.href = 'index.html'; }
+    </script>
+</body>
+</html>
