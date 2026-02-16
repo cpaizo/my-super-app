@@ -2,30 +2,50 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>員工打卡系統</title>
+    <title>企業內部系統 - 登入</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
-        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1.1rem; }
-        button:hover { background-color: #0056b3; }
-        #status { margin-top: 1rem; color: #666; }
+        body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; padding-top: 50px; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; }
+        .hidden { display: none; } /* 關鍵：預設把系統功能藏起來 */
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>🚀 員工打卡系統</h1>
-        <p>請點擊下方按鈕完成今日簽到</p>
-        <button onclick="checkIn()">立即打卡</button>
-        <div id="status"></div>
+
+<div class="container">
+    <div id="login-section">
+        <h2>🔑 系統登入</h2>
+        <input type="email" id="email" placeholder="電子郵件">
+        <input type="password" id="password" placeholder="密碼">
+        <button onclick="handleLogin()">登入</button>
     </div>
 
-    <script>
-        function checkIn() {
-            const status = document.getElementById('status');
-            status.innerText = "打卡處理中... (稍後連線資料庫)";
-            // 這裡之後會寫連線到 Go 後端的程式碼
+    <div id="main-menu" class="hidden">
+        <h2 id="welcome-msg">歡迎回來！</h2>
+        <hr>
+        <button onclick="alert('進入打卡系統')">⏰ 打卡系統</button>
+        <br><br>
+        <div id="admin-only" class="hidden">
+            <button style="background: #dc3545;" onclick="alert('進入管理後台')">⚙️ 管理後台 (限管理員)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function handleLogin() {
+        // 這裡暫時模擬登入成功的邏輯
+        // 之後會改成發送請求給 Go 伺服器
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('main-menu').classList.remove('hidden');
+        
+        // 模擬判定身分：如果是 admin 就顯示管理按鈕
+        const email = document.getElementById('email').value;
+        if (email.includes('admin')) {
+            document.getElementById('admin-only').classList.remove('hidden');
         }
-    </script>
+    }
+</script>
+
 </body>
 </html>
