@@ -11,8 +11,9 @@
         body { padding: 20px; max-width: 800px; margin: auto; background-color: #f0f2f5; }
         .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         .quota-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-        .quota-box { background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center; border: 1px solid #eee; }
-        .quota-val { font-size: 1.5rem; font-weight: bold; color: #1a1a1a; }
+        .quota-box { background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center; border: 1px solid #bbdefb; }
+        .quota-val { font-size: 1.8rem; font-weight: bold; color: #1976d2; }
+        #calc-info { background: #fff8e1; padding: 10px; border-radius: 5px; border-left: 5px solid #ffb300; margin-bottom: 1rem; }
     </style>
 </head>
 <body>
@@ -20,7 +21,8 @@
         <h2>✍️ 填寫請假申請單</h2>
         
         <div class="quota-grid" id="quota-display">
-            </div>
+            <div aria-busy="true">正在載入您的剩餘額度...</div>
+        </div>
 
         <form id="leave-form">
             <div class="grid">
@@ -43,10 +45,13 @@
                 </label>
             </div>
 
-            <p>本次申請時數：<strong id="calc-result">0</strong> 小時 <small>(已自動扣除午休 12:00-13:00)</small></p>
+            <div id="calc-info">
+                本次申請預計時數：<strong id="calc-result" style="font-size: 1.2rem;">0</strong> 小時<br>
+                <small>💡 計算邏輯：每日 09:00-18:00 (扣除午休 12:00-13:00)，不計週末。</small>
+            </div>
 
             <label>請假原因
-                <textarea id="reason" placeholder="請輸入請假原因..." required></textarea>
+                <textarea id="reason" placeholder="請輸入詳細請假原因..." required></textarea>
             </label>
 
             <button type="submit" id="submit-btn">送出申請單</button>
@@ -59,73 +64,95 @@
         const uName = localStorage.getItem('userName');
 
         window.onload = async function() {
-            if (!uEmail) { window.location.href = "index.html"; return; }
+            if (!uEmail) {
+                alert("登入資訊失效，請重新登入。");
+                window.location.href = "index.html";
+                return;
+            }
+            console.log("當前用戶 Email:", uEmail); // 偵錯用
             await loadQuotas();
         };
 
-        // 1. 載入剩餘時數
+        // 1. 載入剩餘時數 (對接 leave_quotas 資料表)
         async function loadQuotas() {
-            const { data, error } = await _supabase
-                .from('leave_quotas')
-                .select('*')
-                .eq('user_email', uEmail);
-            
             const display = document.getElementById('quota-display');
-            if (data && data.length > 0) {
-                display.innerHTML = data.map(q => `
-                    <div class="quota-box">
-                        <div>${q.leave_type} 剩餘</div>
-                        <div class="quota-val">${q.total_hours - q.used_hours}</div>
-                        <small>小時</small>
-                    </div>
-                `).join('');
-            } else {
-                display.innerHTML = "<p>目前尚無設定額度，請聯繫管理員發放。</p>";
+            try {
+                const { data, error } = await _supabase
+                    .from('leave_quotas')
+                    .select('*')
+                    .eq('user_email', uEmail);
+                
+                if (error) throw error;
+
+                console.log("抓取到的額度資料:", data); // 偵錯用
+
+                if (data && data.length > 0) {
+                    display.innerHTML = data.map(q => `
+                        <div class="quota-box">
+                            <div>${q.leave_type} 剩餘</div>
+                            <div class="quota-val">${q.total_hours - q.used_hours}</div>
+                            <small>小時</small>
+                        </div>
+                    `).join('');
+                } else {
+                    display.innerHTML = "<p style='color:red;'>⚠️ 目前尚無設定額度，請聯繫管理員發放 (或檢查 RLS 權限)。</p>";
+                }
+            } catch (err) {
+                console.error("資料讀取失敗:", err.message);
+                display.innerHTML = "<p>資料載入出錯，請重新整理。</p>";
             }
         }
 
-        // 2. 自動計算小時 (扣除午休)
+        // 2. 自動計算小時 (精確計算上班時間：排除週末、非上班時段、午休)
         function autoCalcHours() {
-    const startVal = document.getElementById('start_time').value;
-    const endVal = document.getElementById('end_time').value;
-    const resEl = document.getElementById('calc-result');
+            const startVal = document.getElementById('start_time').value;
+            const endVal = document.getElementById('end_time').value;
+            const resEl = document.getElementById('calc-result');
 
-    if (!startVal || !endVal) return;
+            if (!startVal || !endVal) return;
 
-    let start = new Date(startVal);
-    let end = new Date(endVal);
+            let start = new Date(startVal);
+            let end = new Date(endVal);
 
-    if (end <= start) {
-        resEl.innerText = "0";
-        return;
-    }
-
-    let totalHours = 0;
-    let current = new Date(start);
-
-    // 以小時為單位步進計算
-    while (current < end) {
-        const day = current.getDay(); // 0 是週日, 6 是週六
-        const hour = current.getHours();
-
-        // 排除週六(6)與週日(0)
-        if (day !== 0 && day !== 6) {
-            // 上班時間 09:00-18:00，且排除午休 12:00-13:00
-            if (hour >= 9 && hour < 18 && hour !== 12) {
-                totalHours++;
+            if (end <= start) {
+                resEl.innerText = "0";
+                return;
             }
+
+            let totalHours = 0;
+            let current = new Date(start);
+
+            // 每小時步進檢查
+            while (current < end) {
+                const day = current.getDay(); // 0 是週日, 6 是週六
+                const hour = current.getHours();
+
+                // 排除週六、週日
+                if (day !== 0 && day !== 6) {
+                    // 只計 09:00 - 18:00 (排除午休 12:00)
+                    if (hour >= 9 && hour < 18 && hour !== 12) {
+                        totalHours++;
+                    }
+                }
+                current.setHours(current.getHours() + 1);
+            }
+
+            resEl.innerText = totalHours;
         }
-        current.setHours(current.getHours() + 1);
-    }
 
-    resEl.innerText = totalHours.toFixed(1);
-}
-
-        // 3. 提交假單
+        // 3. 提交假單 (寫入 leave_requests 資料表)
         document.getElementById('leave-form').onsubmit = async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submit-btn');
+            const requestHours = parseFloat(document.getElementById('calc-result').innerText);
+
+            if (requestHours <= 0) {
+                alert("申請時數不能為 0，請確認時間範圍是否在上班時段內。");
+                return;
+            }
+
             btn.disabled = true;
+            btn.innerText = "正在傳送...";
 
             const leaveData = {
                 user_email: uEmail,
@@ -133,9 +160,9 @@
                 leave_type: document.getElementById('leave_type').value,
                 start_time: document.getElementById('start_time').value,
                 end_time: document.getElementById('end_time').value,
-                request_hours: parseFloat(document.getElementById('calc-result').innerText),
+                request_hours: requestHours,
                 reason: document.getElementById('reason').value,
-                status: 'pending'
+                status: 'pending' // 預設為待審核
             };
 
             const { error } = await _supabase.from('leave_requests').insert([leaveData]);
@@ -146,6 +173,7 @@
             } else {
                 alert("錯誤：" + error.message);
                 btn.disabled = false;
+                btn.innerText = "送出申請單";
             }
         };
     </script>
