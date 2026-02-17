@@ -86,23 +86,40 @@
 
         // 2. 自動計算小時 (扣除午休)
         function autoCalcHours() {
-            const start = new Date(document.getElementById('start_time').value);
-            const end = new Date(document.getElementById('end_time').value);
-            const resEl = document.getElementById('calc-result');
+    const startVal = document.getElementById('start_time').value;
+    const endVal = document.getElementById('end_time').value;
+    const resEl = document.getElementById('calc-result');
 
-            if (start && end && end > start) {
-                let diffMs = end - start;
-                let hours = diffMs / (1000 * 60 * 60);
+    if (!startVal || !endVal) return;
 
-                // 簡單午休邏輯：如果跨越 12:00-13:00 扣一小時
-                const startHour = start.getHours();
-                const endHour = end.getHours();
-                if (startHour <= 12 && endHour >= 13) {
-                    hours -= 1;
-                }
-                resEl.innerText = hours.toFixed(1);
+    let start = new Date(startVal);
+    let end = new Date(endVal);
+
+    if (end <= start) {
+        resEl.innerText = "0";
+        return;
+    }
+
+    let totalHours = 0;
+    let current = new Date(start);
+
+    // 以小時為單位步進計算
+    while (current < end) {
+        const day = current.getDay(); // 0 是週日, 6 是週六
+        const hour = current.getHours();
+
+        // 排除週六(6)與週日(0)
+        if (day !== 0 && day !== 6) {
+            // 上班時間 09:00-18:00，且排除午休 12:00-13:00
+            if (hour >= 9 && hour < 18 && hour !== 12) {
+                totalHours++;
             }
         }
+        current.setHours(current.getHours() + 1);
+    }
+
+    resEl.innerText = totalHours.toFixed(1);
+}
 
         // 3. 提交假單
         document.getElementById('leave-form').onsubmit = async (e) => {
