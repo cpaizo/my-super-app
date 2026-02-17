@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>請假紀錄查詢 - 企業管理系統</title>
+    <title>請假紀錄明細 - 企業管理系統</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
@@ -11,20 +11,21 @@
         body { padding: 20px; background-color: #f0f2f5; }
         .container { max-width: 1100px; margin: auto; }
         .card { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 2rem; }
-        .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
         .pending { background: #fff3e0; color: #ef6c00; }
         .approved { background: #e8f5e9; color: #2e7d32; }
-        .rejected { background: #ffejef; color: #c62828; }
-        .filter-section { display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }
-        .filter-section label { margin-bottom: 0; flex: 1; }
+        .rejected { background: #ffebee; color: #c62828; }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; align-items: end; }
+        table th, table td { vertical-align: middle; }
+        .time-cell { font-family: monospace; font-size: 0.85rem; line-height: 1.2; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <hgroup>
-                <h1>📅 請假紀錄查詢</h1>
-                <p id="view-type-text">正在載入紀錄...</p>
+                <h1>📅 請假紀錄明細</h1>
+                <p>查看歷史請假資訊與審核狀態</p>
             </hgroup>
             <nav>
                 <ul>
@@ -34,13 +35,14 @@
         </header>
 
         <main class="card">
-            <div class="filter-section">
+            <div class="filter-grid">
                 <label>假別篩選
                     <select id="filter-type" onchange="filterData()">
                         <option value="全部">全部假別</option>
                         <option value="特休">特休</option>
                         <option value="事假">事假</option>
                         <option value="病假">病假</option>
+                        <option value="公假">公假</option>
                     </select>
                 </label>
                 <label>狀態篩選
@@ -51,24 +53,26 @@
                         <option value="rejected">已駁回</option>
                     </select>
                 </label>
-                <button onclick="fetchLogs()" class="secondary">重新整理</button>
+                <div>
+                    <button onclick="fetchLogs()" class="secondary">🔄 整理數據</button>
+                </div>
             </div>
 
             <figure>
                 <table role="grid">
                     <thead>
                         <tr>
-                            <th>申請日期</th>
-                            <th id="th-name">員工姓名</th>
+                            <th style="width: 120px;">申請日期</th>
+                            <th>員工姓名</th>
                             <th>假別</th>
-                            <th>請假期間</th>
-                            <th>時數</th>
+                            <th style="min-width: 200px;">請假期間</th>
+                            <th>總時數</th>
                             <th>狀態</th>
-                            <th>原因</th>
+                            <th>原因備註</th>
                         </tr>
                     </thead>
                     <tbody id="log-table">
-                        <tr><td colspan="7" aria-busy="true">資料載入中...</td></tr>
+                        <tr><td colspan="7" aria-busy="true">正在讀取紀錄...</td></tr>
                     </tbody>
                 </table>
             </figure>
@@ -77,27 +81,19 @@
 
     <script>
         const uEmail = localStorage.getItem('userEmail');
-        const uRole = localStorage.getItem('userRole'); // 假設您在登入時有存角色 (admin 或 employee)
+        const uRole = localStorage.getItem('userRole'); // admin 或 employee
         let allLogs = [];
 
         window.onload = function() {
             if (!uEmail) { window.location.href = "index.html"; return; }
-            
-            // 介面微調
-            if (uRole !== 'admin') {
-                document.getElementById('th-name').style.display = 'none';
-                document.getElementById('view-type-text').innerText = "個人請假歷史紀錄";
-            } else {
-                document.getElementById('view-type-text').innerText = "管理員模式：全公司請假紀錄";
-            }
-            
             fetchLogs();
         };
 
         async function fetchLogs() {
+            // 基礎查詢
             let query = _supabase.from('leave_requests').select('*').order('created_at', { ascending: false });
 
-            // 如果不是管理員，只抓自己的資料
+            // 安全性過濾：如果不是管理員，強制只能看到自己的資料
             if (uRole !== 'admin') {
                 query = query.eq('user_email', uEmail);
             }
@@ -105,7 +101,7 @@
             const { data, error } = await query;
 
             if (error) {
-                alert("抓取資料失敗：" + error.message);
+                console.error("資料抓取失敗:", error);
                 return;
             }
 
@@ -115,26 +111,35 @@
 
         function renderTable(list) {
             const tbody = document.getElementById('log-table');
-            if (list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7">查無請假紀錄。</td></tr>';
+            if (!list || list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7">目前尚無任何請假紀錄。</td></tr>';
                 return;
             }
 
             tbody.innerHTML = list.map(r => {
-                let statusText = r.status === 'pending' ? '待審核' : (r.status === 'approved' ? '已核准' : '已駁回');
-                let startTime = new Date(r.start_time).toLocaleString('zh-TW', { hour12: false });
-                let endTime = new Date(r.end_time).toLocaleString('zh-TW', { hour12: false });
-                let createDate = new Date(r.created_at).toLocaleDateString();
+                const statusMap = { 'pending': '待審核', 'approved': '已核准', 'rejected': '已駁回' };
+                
+                // 格式化日期與時間
+                const createDate = new Date(r.created_at).toLocaleDateString('zh-TW');
+                const startTime = new Date(r.start_time).toLocaleString('zh-TW', { 
+                    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false 
+                });
+                const endTime = new Date(r.end_time).toLocaleString('zh-TW', { 
+                    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false 
+                });
 
                 return `
                 <tr>
                     <td>${createDate}</td>
-                    ${uRole === 'admin' ? `<td>${r.user_name}</td>` : ''}
-                    <td><strong>${r.leave_type}</strong></td>
-                    <td><small>${startTime}<br>至 ${endTime}</small></td>
-                    <td>${r.request_hours} 小時</td>
-                    <td><span class="status-badge ${r.status}">${statusText}</span></td>
-                    <td><small>${r.reason || ''}</small></td>
+                    <td><strong>${r.user_name || '未知'}</strong><br><small style="color:#666">${r.user_email}</small></td>
+                    <td>${r.leave_type}</td>
+                    <td class="time-cell">
+                        起：${startTime}<br>
+                        迄：${endTime}
+                    </td>
+                    <td><mark>${r.request_hours} 小時</mark></td>
+                    <td><span class="status-badge ${r.status}">${statusMap[r.status]}</span></td>
+                    <td><small>${r.reason || '-'}</small></td>
                 </tr>
                 `;
             }).join('');
