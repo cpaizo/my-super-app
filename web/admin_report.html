@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>即時考勤監控 - 企業管理系統</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <style>
+        body { padding: 20px; background-color: #f0f2f5; }
+        .container { max-width: 1200px; margin: auto; }
+        .card { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 2rem; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-box { padding: 1rem; border-radius: 10px; text-align: center; color: white; }
+        .bg-blue { background-color: #3949ab; }
+        .bg-green { background-color: #43a047; }
+        .bg-orange { background-color: #fb8c00; }
+        .bg-red { background-color: #e53935; }
+        .status-tag { padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        .on-duty { background: #e8f5e9; color: #2e7d32; }
+        .off-duty { background: #ffebee; color: #c62828; }
+        .on-leave { background: #fff3e0; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <hgroup>
+                <h1>📊 即時考勤監控</h1>
+                <p id="today-date">讀取中...</p>
+            </hgroup>
+            <button class="outline" onclick="location.href='portal.html'">返回主選單</button>
+        </header>
+
+        <div class="stat-grid">
+            <div class="stat-box bg-blue">
+                <div>應到人數</div>
+                <h2 id="total-staff">0</h2>
+            </div>
+            <div class="stat-box bg-green">
+                <div>已打卡</div>
+                <h2 id="present-count">0</h2>
+            </div>
+            <div class="stat-box bg-orange">
+                <div>請假中</div>
+                <h2 id="leave-count">0</h2>
+            </div>
+            <div class="stat-box bg-red">
+                <div>未打卡</div>
+                <h2 id="absent-count">0</h2>
+            </div>
+        </div>
+
+        <main class="card">
+            <h3>👥 員工即時狀態</h3>
+            <figure>
+                <table role="grid">
+                    <thead>
+                        <tr>
+                            <th>員工姓名</th>
+                            <th>打卡狀態</th>
+                            <th>上班打卡</th>
+                            <th>下班打卡</th>
+                            <th>備註/請假資訊</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendance-list">
+                        <tr><td colspan="5" aria-busy="true">正在獲取最新考勤資料...</td></tr>
+                    </tbody>
+                </table>
+            </figure>
+        </main>
+    </div>
+
+    <script>
+        const todayStr = new Date().toISOString().split('T')[0]; // 格式: 2023-10-27
+
+        window.onload = function() {
+            document.getElementById('today-date').innerText = "今日日期：" + new Date().toLocaleDateString();
+            fetchMonitorData();
+        };
+
+        async function fetchMonitorData() {
+            try {
+                // 1. 獲取所有員工額度資料 (作為員工清單基礎)
+                const { data: users, error: uError } = await _supabase
+                    .from('leave_quotas')
+                    .select('user_name, user_email');
+                
+                // 去除重複的 Email (因為一個員工可能有多種假別額度)
+                const staffList = Array.from(new Set(users.map(a => a.user_email)))
+                    .map(email => users.find(a => a.user_email === email));
+
+                // 2. 獲取今日打卡紀錄
+                const { data: attendance, error: aError } = await _supabase
+                    .from('attendance')
+                    .select('*')
+                    .gte('work_date', todayStr);
+
+                // 3. 獲取今日請假紀錄 (已核准且時間涵蓋今天)
+                const { data: leaves, error: lError } = await _supabase
+                    .from('leave_requests')
+                    .select('*')
+                    .eq('status', 'approved');
+
+                renderMonitor(staffList, attendance, leaves);
+            } catch (err) {
+                console.error("監控載入錯誤:", err);
+            }
+        }
+
+        function renderMonitor(staff, attendance, leaves) {
+            const tbody = document.getElementById('attendance-list');
+            let present = 0;
+            let leave = 0;
+
+            tbody.innerHTML = staff.map(user => {
+                // 找該員工打卡資料
+                const record = attendance.find(a => a.user_email === user.user_email);
+                // 找該員工今天是否在請假期間內
+                const isOnLeave = leaves.find(l => {
+                    const now = new Date();
+                    return l.user_email === user.user_email && now >= new Date(l.start_time) && now <= new Date(l.end_time);
+                });
+
+                let statusHtml = "";
+                let timeIn = record?.check_in || "---";
+                let timeOut = record?.check_out || "---";
+                let note = "";
+
+                if (isOnLeave) {
+                    statusHtml = '<span class="status-tag on-leave">請假中</span>';
+                    note = `請假類型：${isOnLeave.leave_type}`;
+                    leave++;
+                } else if (record) {
+                    statusHtml = '<span class="status-tag on-duty">已上工</span>';
+                    present++;
+                } else {
+                    statusHtml = '<span class="status-tag off-duty">未打卡</span>';
+                }
+
+                return `
+                    <tr>
+                        <td><strong>${user.user_name}</strong><br><small>${user.user_email}</small></td>
+                        <td>${statusHtml}</td>
+                        <td>${timeIn}</td>
+                        <td>${timeOut}</td>
+                        <td>${note}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // 更新統計看板
+            document.getElementById('total-staff').innerText = staff.length;
+            document.getElementById('present-count').innerText = present;
+            document.getElementById('leave-count').innerText = leave;
+            document.getElementById('absent-count').innerText = staff.length - present - leave;
+        }
+    </script>
+</body>
+</html>
