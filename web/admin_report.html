@@ -12,25 +12,24 @@
         .container { max-width: 1200px; margin: auto; }
         .card { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 2rem; }
         .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-        .stat-box { padding: 1.5rem; border-radius: 12px; text-align: center; color: white; transition: transform 0.2s; }
-        .stat-box:hover { transform: translateY(-5px); }
+        .stat-box { padding: 1.5rem; border-radius: 12px; text-align: center; color: white; }
         .bg-blue { background-color: #3949ab; }
         .bg-green { background-color: #43a047; }
         .bg-orange { background-color: #fb8c00; }
         .bg-red { background-color: #e53935; }
-        .status-tag { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
-        .on-duty { background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }
-        .off-duty { background: #ffebee; color: #c62828; border: 1px solid #c62828; }
-        .on-leave { background: #fff3e0; color: #ef6c00; border: 1px solid #ef6c00; }
-        small { color: #666; }
+        .status-tag { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; border: 1px solid; }
+        .on-duty { background: #e8f5e9; color: #2e7d32; border-color: #2e7d32; }
+        .off-duty { background: #ffebee; color: #c62828; border-color: #c62828; }
+        .on-leave { background: #fff3e0; color: #ef6c00; border-color: #ef6c00; }
+        table th, table td { vertical-align: middle; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <hgroup>
-                <h1>📊 即時考勤監控系統</h1>
-                <p id="today-date">初始化中...</p>
+                <h1>📊 即時考勤監控</h1>
+                <p id="today-date">數據載入中...</p>
             </hgroup>
             <nav>
                 <ul>
@@ -41,20 +40,20 @@
 
         <div class="stat-grid">
             <div class="stat-box bg-blue">
-                <small style="color: rgba(255,255,255,0.8)">應到總人數</small>
-                <h2 id="total-staff">--</h2>
+                <small>應到總人數</small>
+                <h2 id="total-staff">0</h2>
             </div>
             <div class="stat-box bg-green">
-                <small style="color: rgba(255,255,255,0.8)">今日已打卡</small>
-                <h2 id="present-count">--</h2>
+                <small>今日已打卡</small>
+                <h2 id="present-count">0</h2>
             </div>
             <div class="stat-box bg-orange">
-                <small style="color: rgba(255,255,255,0.8)">核准請假中</small>
-                <h2 id="leave-count">--</h2>
+                <small>核准請假中</small>
+                <h2 id="leave-count">0</h2>
             </div>
             <div class="stat-box bg-red">
-                <small style="color: rgba(255,255,255,0.8)">缺席未打卡</small>
-                <h2 id="absent-count">--</h2>
+                <small>缺席未打卡</small>
+                <h2 id="absent-count">0</h2>
             </div>
         </div>
 
@@ -68,11 +67,11 @@
                             <th>目前狀態</th>
                             <th>上班打卡</th>
                             <th>下班打卡</th>
-                            <th>備註</th>
+                            <th>備註/請假事由</th>
                         </tr>
                     </thead>
                     <tbody id="attendance-list">
-                        <tr><td colspan="5" aria-busy="true">正在同步雲端資料...</td></tr>
+                        <tr><td colspan="5" aria-busy="true" style="text-align:center;">正在同步雲端資料庫...</td></tr>
                     </tbody>
                 </table>
             </figure>
@@ -80,12 +79,12 @@
     </div>
 
     <script>
-        // 取得今日日期字串 (YYYY-MM-DD)
+        // 自動生成今日日期 YYYY-MM-DD
         const now = new Date();
         const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
         window.onload = async function() {
-            document.getElementById('today-date').innerText = "數據統計基準日：" + new Date().toLocaleDateString();
+            document.getElementById('today-date').innerText = "統計基準日：" + new Date().toLocaleDateString();
             await fetchMonitorData();
         };
 
@@ -93,23 +92,32 @@
             const listBody = document.getElementById('attendance-list');
             
             try {
-                // 1. 抓取員工名單 (從額度表獲取)
-                const { data: users, error: uError } = await _supabase
-                    .from('leave_quotas')
+                // 1. 抓取員工姓名與 Email 對照 (改從 leave_requests 獲取，避免 quotas 表欄位缺失)
+                const { data: nameData, error: uError } = await _supabase
+                    .from('leave_requests')
                     .select('user_name, user_email');
                 
                 if (uError) throw uError;
 
-                // 移除重複員工
-                const uniqueStaff = Array.from(new Map(users.map(u => [u.user_email, u])).values());
+                // 建立唯一的員工對照表 (Email -> Name)
+                const staffMap = new Map();
+                if (nameData) {
+                    nameData.forEach(item => {
+                        if (item.user_email && !staffMap.has(item.user_email)) {
+                            staffMap.set(item.user_email, item.user_name || '未設姓名');
+                        }
+                    });
+                }
 
-                // 2. 抓取今日打卡紀錄 (對應您的打卡欄位，假設是 work_date)
+                const uniqueStaff = Array.from(staffMap, ([email, name]) => ({ user_email: email, user_name: name }));
+
+                // 2. 抓取今日打卡紀錄 (請確保資料表名稱為 attendance)
                 const { data: attendance, error: aError } = await _supabase
                     .from('attendance')
                     .select('*')
                     .eq('work_date', todayStr);
 
-                // 3. 抓取今日請假紀錄
+                // 3. 抓取今日核准的請假紀錄
                 const { data: leaves, error: lError } = await _supabase
                     .from('leave_requests')
                     .select('*')
@@ -129,15 +137,15 @@
             let leaveCount = 0;
 
             if (staff.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">尚未建立任何員工資料。</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">目前系統中尚無員工紀錄 (需至少有一筆請假申請紀錄)</td></tr>';
                 return;
             }
 
             tbody.innerHTML = staff.map(user => {
-                // 檢查是否打卡
+                // 判斷是否打卡
                 const record = attendance.find(a => a.user_email === user.user_email);
                 
-                // 檢查是否正在請假期間內
+                // 判斷是否正在請假期間內
                 const nowTime = new Date();
                 const activeLeave = leaves.find(l => {
                     return l.user_email === user.user_email && 
@@ -146,34 +154,34 @@
                 });
 
                 let statusHtml = "";
-                let checkInTime = record ? (record.check_in || '---') : '---';
-                let checkOutTime = record ? (record.check_out || '---') : '---';
+                let checkIn = record?.check_in || '---';
+                let checkOut = record?.check_out || '---';
                 let note = "";
 
                 if (activeLeave) {
-                    statusHtml = '<span class="status-tag on-leave">🌴 請假中</span>';
+                    statusHtml = '<span class="status-tag on-leave">請假中</span>';
                     note = `[${activeLeave.leave_type}] ${activeLeave.reason || ''}`;
                     leaveCount++;
                 } else if (record) {
-                    statusHtml = '<span class="status-tag on-duty">✅ 已到工</span>';
+                    statusHtml = '<span class="status-tag on-duty">已上工</span>';
                     present++;
                 } else {
-                    statusHtml = '<span class="status-tag off-duty">❌ 未打卡</span>';
-                    note = '<span style="color:#ccc">尚未有今日紀錄</span>';
+                    statusHtml = '<span class="status-tag off-duty">未打卡</span>';
+                    note = '<span style="color:#999">尚未進入系統</span>';
                 }
 
                 return `
                     <tr>
                         <td><strong>${user.user_name}</strong><br><small>${user.user_email}</small></td>
                         <td>${statusHtml}</td>
-                        <td>${checkInTime}</td>
-                        <td>${checkOutTime}</td>
+                        <td>${checkIn}</td>
+                        <td>${checkOut}</td>
                         <td><small>${note}</small></td>
                     </tr>
                 `;
             }).join('');
 
-            // 更新儀表板數據
+            // 更新儀表板
             document.getElementById('total-staff').innerText = staff.length;
             document.getElementById('present-count').innerText = present;
             document.getElementById('leave-count').innerText = leaveCount;
