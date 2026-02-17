@@ -17,6 +17,8 @@
         button { width: 100%; margin-bottom: 1rem; font-size: 1.1rem; transition: 0.3s; }
         button:disabled { cursor: not-allowed; opacity: 0.7; }
         .location-info { font-size: 0.85rem; color: #888; text-align: center; margin-top: 1rem; background: #f9f9f9; padding: 10px; border-radius: 8px; }
+        /* 新增：回主選單按鈕的間距 */
+        .back-nav { margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1.5rem; }
     </style>
 </head>
 <body>
@@ -40,6 +42,10 @@
                 <strong>[ 定位資訊 ]</strong><br>
                 目前位置：<span id="coord-val">尚未取得</span><br>
                 距離中心：<span id="dist-val">--</span> 公尺
+            </div>
+
+            <div class="back-nav">
+                <button class="outline contrast" onclick="location.href='portal.html'">🏠 返回主選單</button>
             </div>
         </div>
     </main>
@@ -105,7 +111,6 @@
         // 4. 檢查今日打卡狀態 (防重複打卡)
         async function checkTodayStatus() {
             const now = new Date();
-            // 取得今日台灣時間 00:00:00 的 ISO 字串
             const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
             const { data, error } = await _supabase
@@ -168,9 +173,7 @@
 
                     if (dist > OFFICE_CONFIG.radius) {
                         statusEl.innerHTML = `<span style="color:red">❌ 距離過遠 (${dist}m)</span>`;
-                        // 重新檢查狀態以決定是否恢復按鈕
                         await checkTodayStatus();
-                        // 如果檢查完按鈕沒被鎖住，才恢復點擊
                         if (actionType === 'check_in' && !document.getElementById('btn-in').innerText.includes('已打卡')) btnIn.disabled = false;
                         if (actionType === 'check_out' && !document.getElementById('btn-out').innerText.includes('已打卡')) btnOut.disabled = false;
                     } else {
@@ -206,10 +209,4 @@
                 statusEl.innerHTML = `<span style="color:green">✅ 打卡紀錄已儲存！</span>`;
                 setTimeout(() => { window.location.href = "portal.html"; }, 1500);
             } else {
-                alert("系統錯誤：" + error.message);
-                location.reload(); // 失敗則重新整理恢復按鈕狀態
-            }
-        }
-    </script>
-</body>
-</html>
+                alert("系統錯誤
