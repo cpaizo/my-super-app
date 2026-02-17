@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主管審核系統 - 企業管理系統</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <style>
+        body { padding: 20px; background-color: #f0f2f5; }
+        .container { max-width: 1000px; margin: auto; }
+        .card { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 2rem; }
+        .status-pending { color: #f57c00; font-weight: bold; }
+        .status-approved { color: #388e3c; font-weight: bold; }
+        .status-rejected { color: #d32f2f; font-weight: bold; }
+        table { font-size: 0.9rem; }
+        .action-btns { display: flex; gap: 5px; }
+        button.small { padding: 4px 8px; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <hgroup>
+                <h1>📋 假單審核管理</h1>
+                <h2>核准或駁回員工的請假申請</h2>
+            </hgroup>
+            <nav>
+                <ul>
+                    <li><button class="outline" onclick="location.href='portal.html'">返回主選單</button></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main class="card">
+            <h3>⏳ 待處理申請</h3>
+            <figure>
+                <table role="grid">
+                    <thead>
+                        <tr>
+                            <th>申請人</th>
+                            <th>假別</th>
+                            <th>時數</th>
+                            <th>開始時間</th>
+                            <th>結束時間</th>
+                            <th>原因</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pending-list">
+                        <tr><td colspan="7" aria-busy="true">正在載入申請資料...</td></tr>
+                    </tbody>
+                </table>
+            </figure>
+        </main>
+
+        <main class="card">
+            <h3>✅ 最近處理紀錄 (前 10 筆)</h3>
+            <figure>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>申請人</th>
+                            <th>假別</th>
+                            <th>時數</th>
+                            <th>結果</th>
+                            <th>處理時間</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list">
+                        </tbody>
+                </table>
+            </figure>
+        </main>
+    </div>
+
+    <script>
+        window.onload = function() {
+            loadRequests();
+        };
+
+        // 1. 載入所有請假申請
+        async function loadRequests() {
+            // 抓取待審核
+            const { data: pending, error: pError } = await _supabase
+                .from('leave_requests')
+                .select('*')
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false });
+
+            // 抓取已處理
+            const { data: history, error: hError } = await _supabase
+                .from('leave_requests')
+                .select('*')
+                .neq('status', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            renderPending(pending);
+            renderHistory(history);
+        }
+
+        // 2. 渲染待處理列表
+        function renderPending(list) {
+            const tbody = document.getElementById('pending-list');
+            if (!list || list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7">目前沒有待處理的申請。</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = list.map(r => `
+                <tr>
+                    <td><strong>${r.user_name}</strong><br><small>${r.user_email}</small></td>
+                    <td>${r.leave_type}</td>
+                    <td><mark>${r.request_hours}</mark></td>
+                    <td>${new Date(r.start_time).toLocaleString()}</td>
+                    <td>${new Date(r.end_time).toLocaleString()}</td>
+                    <td>${r.reason || ''}</td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="small" onclick="processRequest(${r.id}, 'approved', '${r.user_email}', '${r.leave_type}', ${r.request_hours})">核准</button>
+                            <button class="small secondary outline" onclick="processRequest(${r.id}, 'rejected')">駁回</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // 3. 處理核准或駁回邏輯
+        async function processRequest(id, newStatus, email, type, hours) {
+            if (!confirm(`確定要將此假單標記為 [${newStatus === 'approved' ? '核准' : '駁回'}] 嗎？`)) return;
+
+            // 如果是核准，且是「特休」，則需要去更新額度表
+            if (newStatus === 'approved' && type === '特休') {
+                // 先抓取目前的已用時數
+                const { data: quota, error: qError } = await _supabase
+                    .from('leave_quotas')
+                    .select('used_hours')
+                    .eq('user_email', email)
+                    .eq('leave_type', type)
+                    .single();
+
+                if (quota) {
+                    const updatedUsedHours = quota.used_hours + hours;
+                    // 更新 leave_quotas
+                    await _supabase
+                        .from('leave_quotas')
+                        .update({ used_hours: updatedUsedHours })
+                        .eq('user_email', email)
+                        .eq('leave_type', type);
+                }
+            }
+
+            // 更新假單狀態
+            const { error } = await _supabase
+                .from('leave_requests')
+                .update({ status: newStatus })
+                .eq('id', id);
+
+            if (!error) {
+                alert("處理完成！");
+                loadRequests(); // 重新載入列表
+            } else {
+                alert("處理失敗：" + error.message);
+            }
+        }
+
+        // 4. 渲染歷史紀錄
+        function renderHistory(list) {
+            const tbody = document.getElementById('history-list');
+            tbody.innerHTML = list.map(r => `
+                <tr>
+                    <td>${r.user_name}</td>
+                    <td>${r.leave_type}</td>
+                    <td>${r.request_hours} 小時</td>
+                    <td><span class="status-${r.status}">${r.status === 'approved' ? '✅ 已核准' : '❌ 已駁回'}</span></td>
+                    <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
