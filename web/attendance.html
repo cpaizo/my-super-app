@@ -14,7 +14,8 @@
         #status { font-weight: bold; margin-top: 1.5rem; text-align: center; min-height: 3em; }
         .clock-display { font-size: 2.8rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem; color: #1a1a1a; }
         .date-display { text-align: center; color: #777; margin-bottom: 2rem; letter-spacing: 1px; }
-        button { width: 100%; margin-bottom: 1rem; font-size: 1.1rem; }
+        button { width: 100%; margin-bottom: 1rem; font-size: 1.1rem; transition: 0.3s; }
+        button:disabled { cursor: not-allowed; opacity: 0.7; }
         .location-info { font-size: 0.85rem; color: #888; text-align: center; margin-top: 1rem; background: #f9f9f9; padding: 10px; border-radius: 8px; }
     </style>
 </head>
@@ -33,10 +34,10 @@
                 <button id="btn-out" class="secondary" onclick="handleCheckIn('check_out')">🌜 下班打卡</button>
             </div>
 
-            <div id="status">正在同步辦公室座標...</div>
+            <div id="status">正在同步系統資訊...</div>
 
             <div class="location-info" id="gps-detail">
-                <strong>[ 偵測資訊 ]</strong><br>
+                <strong>[ 定位資訊 ]</strong><br>
                 目前位置：<span id="coord-val">尚未取得</span><br>
                 距離中心：<span id="dist-val">--</span> 公尺
             </div>
@@ -44,9 +45,8 @@
     </main>
 
     <script>
-        // 全域變數，初始值為 0，稍後從資料庫抓取
+        // 全域變數
         let OFFICE_CONFIG = { lat: 0, lng: 0, radius: 200 };
-
         const uInfo = {
             name: localStorage.getItem('userName'),
             email: localStorage.getItem('userEmail'),
@@ -62,7 +62,7 @@
         }
         setInterval(updateClock, 1000);
 
-        // 2. 初始化：檢查登入並抓取資料庫座標
+        // 2. 初始化流程
         window.onload = async function() {
             if (!uInfo.email) {
                 alert("登入逾時，請重新登入");
@@ -73,7 +73,15 @@
             document.getElementById('user-role').innerText = uInfo.role;
             updateClock();
 
-            // 抓取 system_config 中的獨立座標欄位
+            // 同步執行：載入座標與檢查今日打卡狀態
+            await Promise.all([
+                loadOfficeConfig(),
+                checkTodayStatus()
+            ]);
+        };
+
+        // 3. 載入辦公室座標設定
+        async function loadOfficeConfig() {
             try {
                 const { data, error } = await _supabase
                     .from('system_config')
@@ -87,14 +95,42 @@
                     OFFICE_CONFIG.radius = data.radius;
                     document.getElementById('status').innerText = "📍 GPS 定位系統就緒";
                 } else {
-                    document.getElementById('status').innerText = "❌ 無法讀取設定，請聯絡管理員";
+                    document.getElementById('status').innerText = "❌ 無法讀取中心座標";
                 }
             } catch (e) {
-                document.getElementById('status').innerText = "❌ 系統連線異常";
+                document.getElementById('status').innerText = "❌ 網路連線異常";
             }
-        };
+        }
 
-        // 3. 距離計算
+        // 4. 檢查今日打卡狀態 (防重複打卡)
+        async function checkTodayStatus() {
+            const now = new Date();
+            // 取得今日台灣時間 00:00:00 的 ISO 字串
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+            const { data, error } = await _supabase
+                .from('attendance_logs')
+                .select('type')
+                .eq('user_email', uInfo.email)
+                .gte('created_at', todayStart);
+
+            if (data && !error) {
+                data.forEach(log => {
+                    if (log.type === 'check_in') {
+                        const btn = document.getElementById('btn-in');
+                        btn.disabled = true;
+                        btn.innerText = "✅ 今日上班已打卡";
+                    }
+                    if (log.type === 'check_out') {
+                        const btn = document.getElementById('btn-out');
+                        btn.disabled = true;
+                        btn.innerText = "✅ 今日下班已打卡";
+                    }
+                });
+            }
+        }
+
+        // 5. 距離計算
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -106,18 +142,18 @@
             return Math.round(R * c * 1000);
         }
 
-        // 4. 打卡處理
+        // 6. 執行打卡
         async function handleCheckIn(actionType) {
             const statusEl = document.getElementById('status');
             const btnIn = document.getElementById('btn-in');
             const btnOut = document.getElementById('btn-out');
 
             if (OFFICE_CONFIG.lat === 0) {
-                alert("尚未載入辦公室座標，請重新整理頁面");
+                alert("尚未獲取設定值，請稍後再試");
                 return;
             }
 
-            statusEl.innerHTML = `<span aria-busy="true">正在獲取 GPS 位置...</span>`;
+            statusEl.innerHTML = `<span aria-busy="true">正在取得 GPS 位置...</span>`;
             btnIn.disabled = true;
             btnOut.disabled = true;
 
@@ -131,24 +167,26 @@
                     document.getElementById('dist-val').innerText = dist;
 
                     if (dist > OFFICE_CONFIG.radius) {
-                        statusEl.innerHTML = `<span style="color:red">❌ 距離過遠 (${dist}m)</span><br><small>限制：${OFFICE_CONFIG.radius}m 內</small>`;
-                        btnIn.disabled = false;
-                        btnOut.disabled = false;
+                        statusEl.innerHTML = `<span style="color:red">❌ 距離過遠 (${dist}m)</span>`;
+                        // 重新檢查狀態以決定是否恢復按鈕
+                        await checkTodayStatus();
+                        // 如果檢查完按鈕沒被鎖住，才恢復點擊
+                        if (actionType === 'check_in' && !document.getElementById('btn-in').innerText.includes('已打卡')) btnIn.disabled = false;
+                        if (actionType === 'check_out' && !document.getElementById('btn-out').innerText.includes('已打卡')) btnOut.disabled = false;
                     } else {
-                        statusEl.innerText = "📍 範圍確認成功！正在上傳紀錄...";
+                        statusEl.innerText = "📍 範圍核對成功，儲存中...";
                         await submitAttendance(uLat, uLng, actionType);
                     }
                 },
                 (err) => {
-                    statusEl.innerHTML = `<span style="color:red">定位失敗，請確保開啟 Wi-Fi 定位</span>`;
-                    btnIn.disabled = false;
-                    btnOut.disabled = false;
+                    statusEl.innerHTML = `<span style="color:red">定位失敗，請開啟定位權限</span>`;
+                    checkTodayStatus(); 
                 }, 
-                { enableHighAccuracy: false, timeout: 15000 }
+                { enableHighAccuracy: false, timeout: 10000 }
             );
         }
 
-        // 5. 寫入資料庫 (拆分欄位)
+        // 7. 寫入紀錄
         async function submitAttendance(lat, lng, type) {
             const statusEl = document.getElementById('status');
             const dist = calculateDistance(lat, lng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
@@ -165,13 +203,11 @@
             }]);
 
             if (!error) {
-                statusEl.innerHTML = `<span style="color:green">✅ 打卡成功！</span>`;
-                // 跳轉回 portal.html
+                statusEl.innerHTML = `<span style="color:green">✅ 打卡紀錄已儲存！</span>`;
                 setTimeout(() => { window.location.href = "portal.html"; }, 1500);
             } else {
-                alert("寫入失敗：" + error.message);
-                document.getElementById('btn-in').disabled = false;
-                document.getElementById('btn-out').disabled = false;
+                alert("系統錯誤：" + error.message);
+                location.reload(); // 失敗則重新整理恢復按鈕狀態
             }
         }
     </script>
