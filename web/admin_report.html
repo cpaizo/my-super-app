@@ -17,6 +17,7 @@
         .bg-green { background-color: #43a047; }
         .bg-orange { background-color: #fb8c00; }
         .bg-red { background-color: #e53935; }
+        .filter-section { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; background: #fff; padding: 1rem; border-radius: 10px; }
         .status-tag { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; border: 1px solid; }
         .on-duty { background: #e8f5e9; color: #2e7d32; border-color: #2e7d32; }
         .off-duty { background: #ffebee; color: #c62828; border-color: #c62828; }
@@ -27,33 +28,26 @@
     <div class="container">
         <header>
             <hgroup>
-                <h1>📊 全員即時考勤監控</h1>
-                <p id="today-date">數據同步中...</p>
+                <h1>📊 考勤即時監控與歷史查詢</h1>
+                <p>管理者專用控制台</p>
             </hgroup>
             <button class="outline" onclick="location.href='portal.html'">返回主選單</button>
         </header>
 
+        <div class="filter-section">
+            <label for="query-date" style="margin:0; font-weight:bold;">查詢日期：</label>
+            <input type="date" id="query-date" style="margin:0; width: auto;" onchange="fetchMonitorData()">
+            <mark id="date-display"></mark>
+        </div>
+
         <div class="stat-grid">
-            <div class="stat-box bg-blue">
-                <small>正式員工總數</small>
-                <h2 id="total-staff">0</h2>
-            </div>
-            <div class="stat-box bg-green">
-                <small>今日已打卡</small>
-                <h2 id="present-count">0</h2>
-            </div>
-            <div class="stat-box bg-orange">
-                <small>核准請假中</small>
-                <h2 id="leave-count">0</h2>
-            </div>
-            <div class="stat-box bg-red">
-                <small>缺席未打卡</small>
-                <h2 id="absent-count">0</h2>
-            </div>
+            <div class="stat-box bg-blue"><small>員工總數</small><h2 id="total-staff">0</h2></div>
+            <div class="stat-box bg-green"><small>已打卡</small><h2 id="present-count">0</h2></div>
+            <div class="stat-box bg-orange"><small>請假中</small><h2 id="leave-count">0</h2></div>
+            <div class="stat-box bg-red"><small>缺席</small><h2 id="absent-count">0</h2></div>
         </div>
 
         <main class="card">
-            <h3>👥 員工狀態明細</h3>
             <figure>
                 <table role="grid">
                     <thead>
@@ -62,11 +56,11 @@
                             <th>目前狀態</th>
                             <th>上班打卡 (In)</th>
                             <th>下班打卡 (Out)</th>
-                            <th>今日備註</th>
+                            <th>當日備註</th>
                         </tr>
                     </thead>
                     <tbody id="attendance-list">
-                        <tr><td colspan="5" aria-busy="true" style="text-align:center;">正在載入正式員工名單...</td></tr>
+                        <tr><td colspan="5" style="text-align:center;">正在讀取資料...</td></tr>
                     </tbody>
                 </table>
             </figure>
@@ -74,91 +68,84 @@
     </div>
 
     <script>
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-
-        window.onload = async function() {
-            document.getElementById('today-date').innerText = "查詢日期：" + new Date().toLocaleDateString();
-            await fetchMonitorData();
+        // 初始化日期選擇器為今天
+        window.onload = function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('query-date').value = today;
+            fetchMonitorData();
         };
 
         async function fetchMonitorData() {
             const listBody = document.getElementById('attendance-list');
+            const targetDate = document.getElementById('query-date').value; // 取得選定的日期 (YYYY-MM-DD)
+            
+            document.getElementById('date-display').innerText = `正在查看：${targetDate}`;
+
             try {
-                // 1. 抓取所有正式員工 (full_name)
+                // 1. 抓取正式員工
                 const { data: staff, error: sError } = await _supabase
                     .from('employees')
                     .select('full_name, email');
                 if (sError) throw sError;
 
-                // 2. 抓取今日打卡紀錄 (created_at 篩選今天)
+                // 2. 抓取選定日期的打卡紀錄
                 const { data: logs, error: lError } = await _supabase
                     .from('attendance_logs')
                     .select('user_email, created_at, type')
-                    .gte('created_at', todayStr + 'T00:00:00')
-                    .lte('created_at', todayStr + 'T23:59:59');
+                    .gte('created_at', targetDate + 'T00:00:00')
+                    .lte('created_at', targetDate + 'T23:59:59');
                 if (lError) throw lError;
 
-                // 3. 抓取今日請假
+                // 3. 抓取選定日期的請假紀錄 (已核准)
                 const { data: leaves, error: lvError } = await _supabase
                     .from('leave_requests')
                     .select('*')
                     .eq('status', 'approved');
 
-                renderMonitor(staff || [], logs || [], leaves || []);
+                renderMonitor(staff || [], logs || [], leaves || [], targetDate);
             } catch (err) {
                 console.error("載入錯誤:", err);
                 listBody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">⚠️ 錯誤: ${err.message}</td></tr>`;
             }
         }
 
-        function renderMonitor(staff, logs, leaves) {
+        function renderMonitor(staff, logs, leaves, targetDate) {
             const tbody = document.getElementById('attendance-list');
+            const targetDateTime = new Date(targetDate + 'T12:00:00'); // 取當日中午進行比較
             let presentCount = 0;
             let leaveCount = 0;
 
-            // 處理打卡紀錄：按 email 存儲 check_in 和 check_out
             const punchData = {};
             logs.forEach(log => {
                 const email = log.user_email;
                 const time = new Date(log.created_at).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
-                
-                if (!punchData[email]) {
-                    punchData[email] = { check_in: '---', check_out: '---' };
-                }
+                if (!punchData[email]) punchData[email] = { check_in: '---', check_out: '---' };
 
                 if (log.type === 'check_in') {
-                    // 如果同一個人多次 check_in，取最早的
-                    if (punchData[email].check_in === '---' || time < punchData[email].check_in) {
-                        punchData[email].check_in = time;
-                    }
+                    if (punchData[email].check_in === '---' || time < punchData[email].check_in) punchData[email].check_in = time;
                 } else if (log.type === 'check_out') {
-                    // 如果同一個人多次 check_out，取最晚的
-                    if (punchData[email].check_out === '---' || time > punchData[email].check_out) {
-                        punchData[email].check_out = time;
-                    }
+                    if (punchData[email].check_out === '---' || time > punchData[email].check_out) punchData[email].check_out = time;
                 }
             });
 
             tbody.innerHTML = staff.map(user => {
                 const record = punchData[user.email];
-                const nowTime = new Date();
                 
-                // 請假判斷
-                const activeLeave = leaves.find(l => 
-                    l.user_email === user.email && 
-                    nowTime >= new Date(l.start_time) && 
-                    nowTime <= new Date(l.end_time)
-                );
+                // 判斷該員工在「選定日期」是否正在請假
+                const isOnLeave = leaves.find(l => {
+                    const start = new Date(l.start_time);
+                    const end = new Date(l.end_time);
+                    return l.user_email === user.email && targetDateTime >= start && targetDateTime <= end;
+                });
 
                 let statusHtml = "";
                 let inTime = record ? record.check_in : '---';
                 let outTime = record ? record.check_out : '---';
                 let note = "";
 
-                if (activeLeave) {
-                    statusHtml = '<span class="status-tag on-leave">請假中</span>';
-                    note = `[${activeLeave.leave_type}] ${activeLeave.reason || ''}`;
+                if (isOnLeave) {
+                    statusHtml = '<span class="status-tag on-leave">請假</span>';
+                    note = `[${isOnLeave.leave_type}] ${isOnLeave.reason || ''}`;
                     leaveCount++;
                 } else if (record && record.check_in !== '---') {
                     statusHtml = '<span class="status-tag on-duty">已到工</span>';
@@ -178,7 +165,6 @@
                 `;
             }).join('');
 
-            // 更新統計
             document.getElementById('total-staff').innerText = staff.length;
             document.getElementById('present-count').innerText = presentCount;
             document.getElementById('leave-count').innerText = leaveCount;
