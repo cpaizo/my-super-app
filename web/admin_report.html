@@ -21,26 +21,21 @@
         .on-duty { background: #e8f5e9; color: #2e7d32; border-color: #2e7d32; }
         .off-duty { background: #ffebee; color: #c62828; border-color: #c62828; }
         .on-leave { background: #fff3e0; color: #ef6c00; border-color: #ef6c00; }
-        table th, table td { vertical-align: middle; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <hgroup>
-                <h1>📊 即時考勤監控</h1>
-                <p id="today-date">數據載入中...</p>
+                <h1>📊 全員即時考勤監控</h1>
+                <p id="today-date">數據同步中...</p>
             </hgroup>
-            <nav>
-                <ul>
-                    <li><button class="outline" onclick="location.href='portal.html'">返回主選單</button></li>
-                </ul>
-            </nav>
+            <button class="outline" onclick="location.href='portal.html'">返回主選單</button>
         </header>
 
         <div class="stat-grid">
             <div class="stat-box bg-blue">
-                <small>應到總人數</small>
+                <small>正式員工總數</small>
                 <h2 id="total-staff">0</h2>
             </div>
             <div class="stat-box bg-green">
@@ -58,20 +53,20 @@
         </div>
 
         <main class="card">
-            <h3>👥 員工動態清單</h3>
+            <h3>👥 員工狀態明細</h3>
             <figure>
                 <table role="grid">
                     <thead>
                         <tr>
-                            <th>員工資訊</th>
+                            <th>員工姓名</th>
                             <th>目前狀態</th>
-                            <th>上班打卡</th>
-                            <th>下班打卡</th>
-                            <th>備註/請假事由</th>
+                            <th>上班打卡 (In)</th>
+                            <th>下班打卡 (Out)</th>
+                            <th>今日備註</th>
                         </tr>
                     </thead>
                     <tbody id="attendance-list">
-                        <tr><td colspan="5" aria-busy="true" style="text-align:center;">正在同步雲端資料庫...</td></tr>
+                        <tr><td colspan="5" aria-busy="true" style="text-align:center;">正在載入正式員工名單...</td></tr>
                     </tbody>
                 </table>
             </figure>
@@ -79,113 +74,115 @@
     </div>
 
     <script>
-        // 自動生成今日日期 YYYY-MM-DD
         const now = new Date();
-        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayStr = now.toISOString().split('T')[0];
 
         window.onload = async function() {
-            document.getElementById('today-date').innerText = "統計基準日：" + new Date().toLocaleDateString();
+            document.getElementById('today-date').innerText = "查詢日期：" + new Date().toLocaleDateString();
             await fetchMonitorData();
         };
 
         async function fetchMonitorData() {
             const listBody = document.getElementById('attendance-list');
-            
             try {
-                // 1. 抓取員工姓名與 Email 對照 (改從 leave_requests 獲取，避免 quotas 表欄位缺失)
-                const { data: nameData, error: uError } = await _supabase
-                    .from('leave_requests')
-                    .select('user_name, user_email');
-                
-                if (uError) throw uError;
+                // 1. 抓取所有正式員工 (full_name)
+                const { data: staff, error: sError } = await _supabase
+                    .from('employees')
+                    .select('full_name, email');
+                if (sError) throw sError;
 
-                // 建立唯一的員工對照表 (Email -> Name)
-                const staffMap = new Map();
-                if (nameData) {
-                    nameData.forEach(item => {
-                        if (item.user_email && !staffMap.has(item.user_email)) {
-                            staffMap.set(item.user_email, item.user_name || '未設姓名');
-                        }
-                    });
-                }
+                // 2. 抓取今日打卡紀錄 (created_at 篩選今天)
+                const { data: logs, error: lError } = await _supabase
+                    .from('attendance_logs')
+                    .select('user_email, created_at, type')
+                    .gte('created_at', todayStr + 'T00:00:00')
+                    .lte('created_at', todayStr + 'T23:59:59');
+                if (lError) throw lError;
 
-                const uniqueStaff = Array.from(staffMap, ([email, name]) => ({ user_email: email, user_name: name }));
-
-                // 2. 抓取今日打卡紀錄 (請確保資料表名稱為 attendance)
-                const { data: attendance, error: aError } = await _supabase
-                    .from('attendance')
-                    .select('*')
-                    .eq('work_date', todayStr);
-
-                // 3. 抓取今日核准的請假紀錄
-                const { data: leaves, error: lError } = await _supabase
+                // 3. 抓取今日請假
+                const { data: leaves, error: lvError } = await _supabase
                     .from('leave_requests')
                     .select('*')
                     .eq('status', 'approved');
 
-                renderMonitor(uniqueStaff, attendance || [], leaves || []);
-
+                renderMonitor(staff || [], logs || [], leaves || []);
             } catch (err) {
-                console.error("監控載入錯誤:", err);
-                listBody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">⚠️ 載入失敗: ${err.message}</td></tr>`;
+                console.error("載入錯誤:", err);
+                listBody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">⚠️ 錯誤: ${err.message}</td></tr>`;
             }
         }
 
-        function renderMonitor(staff, attendance, leaves) {
+        function renderMonitor(staff, logs, leaves) {
             const tbody = document.getElementById('attendance-list');
-            let present = 0;
+            let presentCount = 0;
             let leaveCount = 0;
 
-            if (staff.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">目前系統中尚無員工紀錄 (需至少有一筆請假申請紀錄)</td></tr>';
-                return;
-            }
+            // 處理打卡紀錄：按 email 存儲 check_in 和 check_out
+            const punchData = {};
+            logs.forEach(log => {
+                const email = log.user_email;
+                const time = new Date(log.created_at).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                
+                if (!punchData[email]) {
+                    punchData[email] = { check_in: '---', check_out: '---' };
+                }
+
+                if (log.type === 'check_in') {
+                    // 如果同一個人多次 check_in，取最早的
+                    if (punchData[email].check_in === '---' || time < punchData[email].check_in) {
+                        punchData[email].check_in = time;
+                    }
+                } else if (log.type === 'check_out') {
+                    // 如果同一個人多次 check_out，取最晚的
+                    if (punchData[email].check_out === '---' || time > punchData[email].check_out) {
+                        punchData[email].check_out = time;
+                    }
+                }
+            });
 
             tbody.innerHTML = staff.map(user => {
-                // 判斷是否打卡
-                const record = attendance.find(a => a.user_email === user.user_email);
-                
-                // 判斷是否正在請假期間內
+                const record = punchData[user.email];
                 const nowTime = new Date();
-                const activeLeave = leaves.find(l => {
-                    return l.user_email === user.user_email && 
-                           nowTime >= new Date(l.start_time) && 
-                           nowTime <= new Date(l.end_time);
-                });
+                
+                // 請假判斷
+                const activeLeave = leaves.find(l => 
+                    l.user_email === user.email && 
+                    nowTime >= new Date(l.start_time) && 
+                    nowTime <= new Date(l.end_time)
+                );
 
                 let statusHtml = "";
-                let checkIn = record?.check_in || '---';
-                let checkOut = record?.check_out || '---';
+                let inTime = record ? record.check_in : '---';
+                let outTime = record ? record.check_out : '---';
                 let note = "";
 
                 if (activeLeave) {
                     statusHtml = '<span class="status-tag on-leave">請假中</span>';
                     note = `[${activeLeave.leave_type}] ${activeLeave.reason || ''}`;
                     leaveCount++;
-                } else if (record) {
-                    statusHtml = '<span class="status-tag on-duty">已上工</span>';
-                    present++;
+                } else if (record && record.check_in !== '---') {
+                    statusHtml = '<span class="status-tag on-duty">已到工</span>';
+                    presentCount++;
                 } else {
                     statusHtml = '<span class="status-tag off-duty">未打卡</span>';
-                    note = '<span style="color:#999">尚未進入系統</span>';
                 }
 
                 return `
                     <tr>
-                        <td><strong>${user.user_name}</strong><br><small>${user.user_email}</small></td>
+                        <td><strong>${user.full_name}</strong><br><small>${user.email}</small></td>
                         <td>${statusHtml}</td>
-                        <td>${checkIn}</td>
-                        <td>${checkOut}</td>
+                        <td>${inTime}</td>
+                        <td>${outTime}</td>
                         <td><small>${note}</small></td>
                     </tr>
                 `;
             }).join('');
 
-            // 更新儀表板
+            // 更新統計
             document.getElementById('total-staff').innerText = staff.length;
-            document.getElementById('present-count').innerText = present;
+            document.getElementById('present-count').innerText = presentCount;
             document.getElementById('leave-count').innerText = leaveCount;
-            document.getElementById('absent-count').innerText = (staff.length - present - leaveCount);
+            document.getElementById('absent-count').innerText = staff.length - presentCount - leaveCount;
         }
     </script>
 </body>
