@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>請假紀錄查詢 - 企業管理系統</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <style>
+        body { padding: 20px; background-color: #f0f2f5; }
+        .container { max-width: 1100px; margin: auto; }
+        .card { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 2rem; }
+        .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+        .pending { background: #fff3e0; color: #ef6c00; }
+        .approved { background: #e8f5e9; color: #2e7d32; }
+        .rejected { background: #ffejef; color: #c62828; }
+        .filter-section { display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }
+        .filter-section label { margin-bottom: 0; flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <hgroup>
+                <h1>📅 請假紀錄查詢</h1>
+                <p id="view-type-text">正在載入紀錄...</p>
+            </hgroup>
+            <nav>
+                <ul>
+                    <li><button class="outline" onclick="location.href='portal.html'">返回主選單</button></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main class="card">
+            <div class="filter-section">
+                <label>假別篩選
+                    <select id="filter-type" onchange="filterData()">
+                        <option value="全部">全部假別</option>
+                        <option value="特休">特休</option>
+                        <option value="事假">事假</option>
+                        <option value="病假">病假</option>
+                    </select>
+                </label>
+                <label>狀態篩選
+                    <select id="filter-status" onchange="filterData()">
+                        <option value="全部">全部狀態</option>
+                        <option value="pending">待審核</option>
+                        <option value="approved">已核准</option>
+                        <option value="rejected">已駁回</option>
+                    </select>
+                </label>
+                <button onclick="fetchLogs()" class="secondary">重新整理</button>
+            </div>
+
+            <figure>
+                <table role="grid">
+                    <thead>
+                        <tr>
+                            <th>申請日期</th>
+                            <th id="th-name">員工姓名</th>
+                            <th>假別</th>
+                            <th>請假期間</th>
+                            <th>時數</th>
+                            <th>狀態</th>
+                            <th>原因</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table">
+                        <tr><td colspan="7" aria-busy="true">資料載入中...</td></tr>
+                    </tbody>
+                </table>
+            </figure>
+        </main>
+    </div>
+
+    <script>
+        const uEmail = localStorage.getItem('userEmail');
+        const uRole = localStorage.getItem('userRole'); // 假設您在登入時有存角色 (admin 或 employee)
+        let allLogs = [];
+
+        window.onload = function() {
+            if (!uEmail) { window.location.href = "index.html"; return; }
+            
+            // 介面微調
+            if (uRole !== 'admin') {
+                document.getElementById('th-name').style.display = 'none';
+                document.getElementById('view-type-text').innerText = "個人請假歷史紀錄";
+            } else {
+                document.getElementById('view-type-text').innerText = "管理員模式：全公司請假紀錄";
+            }
+            
+            fetchLogs();
+        };
+
+        async function fetchLogs() {
+            let query = _supabase.from('leave_requests').select('*').order('created_at', { ascending: false });
+
+            // 如果不是管理員，只抓自己的資料
+            if (uRole !== 'admin') {
+                query = query.eq('user_email', uEmail);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                alert("抓取資料失敗：" + error.message);
+                return;
+            }
+
+            allLogs = data;
+            renderTable(allLogs);
+        }
+
+        function renderTable(list) {
+            const tbody = document.getElementById('log-table');
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7">查無請假紀錄。</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = list.map(r => {
+                let statusText = r.status === 'pending' ? '待審核' : (r.status === 'approved' ? '已核准' : '已駁回');
+                let startTime = new Date(r.start_time).toLocaleString('zh-TW', { hour12: false });
+                let endTime = new Date(r.end_time).toLocaleString('zh-TW', { hour12: false });
+                let createDate = new Date(r.created_at).toLocaleDateString();
+
+                return `
+                <tr>
+                    <td>${createDate}</td>
+                    ${uRole === 'admin' ? `<td>${r.user_name}</td>` : ''}
+                    <td><strong>${r.leave_type}</strong></td>
+                    <td><small>${startTime}<br>至 ${endTime}</small></td>
+                    <td>${r.request_hours} 小時</td>
+                    <td><span class="status-badge ${r.status}">${statusText}</span></td>
+                    <td><small>${r.reason || ''}</small></td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function filterData() {
+            const type = document.getElementById('filter-type').value;
+            const status = document.getElementById('filter-status').value;
+
+            let filtered = allLogs;
+
+            if (type !== '全部') {
+                filtered = filtered.filter(i => i.leave_type === type);
+            }
+            if (status !== '全部') {
+                filtered = filtered.filter(i => i.status === status);
+            }
+
+            renderTable(filtered);
+        }
+    </script>
+</body>
+</html>
