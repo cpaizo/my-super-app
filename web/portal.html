@@ -13,6 +13,11 @@
         .admin-section { margin-top: 2rem; padding-top: 2rem; border-top: 2px dashed #eee; }
         .logout-btn { color: #d81b60; border-color: #d81b60; }
         .logout-btn:hover { background-color: #fff1f6; }
+        
+        /* 針對不同功能的按鈕顏色區分 */
+        .btn-attendance { background-color: #3949ab; border-color: #3949ab; }
+        .btn-order { background-color: #fb8c00; border-color: #fb8c00; } /* 點餐功能用橘色 */
+        .btn-leave { background-color: #43a047; border-color: #43a047; }
         h4 { margin-bottom: 1.5rem; color: #555; }
     </style>
 </head>
@@ -29,10 +34,9 @@
         <section>
             <h4>📋 員工功能</h4>
             <div class="menu-grid">
-                <button onclick="location.href='attendance.html'">📍 上下班打卡</button>
-                <button onclick="location.href='history.html'" class="secondary">📊 我的出勤報表</button>
-                <button onclick="location.href='leave_apply.html'" class="contrast">✍️ 申請請假</button>
-                <button onclick="alert('敬請期待')" class="outline">💬 公告事項</button>
+                <button class="btn-attendance" onclick="location.href='attendance.html'">📍 上下班打卡</button>
+                <button class="btn-order" onclick="location.href='order.html'">🍱 線上點餐</button> <button class="btn-leave" onclick="location.href='leave_apply.html'">✍️ 申請請假</button>
+                <button class="secondary" onclick="location.href='history.html'">📊 我的出勤報表</button>
             </div>
         </section>
 
@@ -41,40 +45,35 @@
             <div class="menu-grid">
                 <button onclick="location.href='admin_report.html'">📈 即時考勤監控</button>
                 <button onclick="location.href='admin_leave_manage.html'" class="secondary">⚖️ 審核請假單</button>
-                <button onclick="alert('開發中: 員工資料管理')" class="outline">👥 員工資料維護</button>
-                <button onclick="alert('開發中: 系統設定')" class="outline">⚙️ 辦公室位置設定</button>
+                <button class="outline" onclick="location.href='admin_orders.html'">🍔 查看今日訂單</button>
+                <button class="outline" onclick="alert('開發中: 員工資料管理')">👥 員工資料維護</button>
             </div>
         </section>
     </main>
 
     <script>
-        // 1. 頁面初始化
         window.onload = function() {
             const uName = localStorage.getItem('userName');
             const uEmail = localStorage.getItem('userEmail');
             const uRole = localStorage.getItem('userRole');
 
-            // 安全檢查：若無登入資訊則強制導回登入頁
             if (!uEmail) {
-                alert("未登入或登入逾時");
                 window.location.href = "index.html";
                 return;
             }
 
-            // 顯示使用者資訊
             document.getElementById('user-name-display').innerText = uName;
             document.getElementById('user-email-display').innerText = uEmail;
 
-            // 角色判斷：如果是 admin，顯示管理者區塊
+            // 角色判斷
             if (uRole === 'admin') {
                 document.getElementById('admin-panel').style.display = 'block';
             }
         };
 
-        // 2. 登出功能
         function logout() {
             if (confirm("確定要登出系統嗎？")) {
-                localStorage.clear(); // 清除所有登入資訊
+                localStorage.clear();
                 window.location.href = "index.html";
             }
         }
