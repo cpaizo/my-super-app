@@ -10,6 +10,7 @@
     <style>
         body { padding: 20px; max-width: 800px; margin: auto; background-color: #f0f2f5; }
         .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .user-info { margin-bottom: 1.5rem; padding: 10px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #1976d2; }
         .quota-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
         .quota-box { background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center; border: 1px solid #bbdefb; }
         .quota-val { font-size: 1.8rem; font-weight: bold; color: #1976d2; }
@@ -21,17 +22,21 @@
     <main class="card">
         <h2>✍️ 填寫請假申請單</h2>
         
+        <div class="user-info">
+            申請人：<strong id="display-name">載入中...</strong> (<span id="display-email">---</span>)
+        </div>
+
         <div class="quota-grid" id="quota-display">
-            <div aria-busy="true">正在同步您的假單額度...</div>
+            <div aria-busy="true">正在載入額度資訊...</div>
         </div>
 
         <form id="leave-form">
             <div class="grid">
                 <label>假別選擇
                     <select id="leave_type" required>
-                        <option value="特休">特休</option>
-                        <option value="事假">事假</option>
-                        <option value="病假">病假</option>
+                        <option value="特休">特休 (扣額度)</option>
+                        <option value="事假">事假 (無額度限制)</option>
+                        <option value="病假">病假 (無額度限制)</option>
                         <option value="公假">公假</option>
                     </select>
                 </label>
@@ -50,10 +55,9 @@
                 本次申請時數：<span class="result-number" id="calc-result">0.0</span> 小時
                 <hr>
                 <small>
-                    ✅ <strong>計算規則：</strong><br>
-                    1. 僅計週一至週五 (排除週末)<br>
-                    2. 上班時段：09:00 - 12:00 及 13:00 - 18:00<br>
-                    3. 自動排除午休時段 (12:00 - 13:00)
+                    ✅ <strong>上班時間定義：</strong><br>
+                    • 09:00 - 12:00 與 13:00 - 18:00 (每日共 8 小時)<br>
+                    • <strong>忽略時段：</strong>18:00 至隔日 09:00、週末六日。
                 </small>
             </div>
 
@@ -76,10 +80,14 @@
                 window.location.href = "index.html";
                 return;
             }
+            // 顯示姓名與 Email
+            document.getElementById('display-name').innerText = uName || "未設定姓名";
+            document.getElementById('display-email').innerText = uEmail;
+            
             await loadQuotas();
         };
 
-        // 1. 載入額度 (從 leave_quotas 讀取)
+        // 1. 載入額度 (僅顯示特休等有額度的假別)
         async function loadQuotas() {
             const display = document.getElementById('quota-display');
             try {
@@ -93,21 +101,21 @@
                 if (data && data.length > 0) {
                     display.innerHTML = data.map(q => `
                         <div class="quota-box">
-                            <div>${q.leave_type} 剩餘</div>
+                            <div>${q.leave_type} 剩餘額度</div>
                             <div class="quota-val">${(q.total_hours - q.used_hours).toFixed(1)}</div>
                             <small>小時</small>
                         </div>
                     `).join('');
                 } else {
-                    display.innerHTML = "<p>⚠️ 查無假單額度，請聯絡管理員設定。</p>";
+                    display.innerHTML = "<p>💡 目前事假、病假無額度限制，直接填寫即可。</p>";
                 }
             } catch (err) {
                 console.error("讀取失敗:", err.message);
-                display.innerHTML = "<p>讀取額度失敗，請檢查網路連線。</p>";
+                display.innerHTML = "<p>讀取額度失敗，請檢查網路。</p>";
             }
         }
 
-        // 2. 精確計算時數 (排除非上班時間、週末、午休)
+        // 2. 精確計算時數 (完全忽略 18:00-09:00)
         function autoCalcHours() {
             const startVal = document.getElementById('start_time').value;
             const endVal = document.getElementById('end_time').value;
@@ -126,18 +134,20 @@
             let totalMinutes = 0;
             let current = new Date(start);
 
-            // 使用分鐘指針法，雖然運算稍多但最精確
+            // 分鐘指針法
             while (current < end) {
-                const day = current.getDay(); 
+                const day = current.getDay(); // 0:日, 6:六
                 const hour = current.getHours();
+                const min = current.getMinutes();
 
-                // 判斷是否為工作日 (週一至週五)
+                // 排除週末
                 if (day !== 0 && day !== 6) {
-                    // 判斷是否為上班時段 (09:00-12:00, 13:00-18:00)
-                    const isMorningWork = (hour >= 9 && hour < 12);
-                    const isAfternoonWork = (hour >= 13 && hour < 18);
+                    // 僅計入 09:00-11:59 與 13:00-17:59
+                    // 12:00-12:59 (午休) 與 18:00-08:59 (非上班時間) 皆不計入
+                    const isMorning = (hour >= 9 && hour < 12);
+                    const isAfternoon = (hour >= 13 && hour < 18);
 
-                    if (isMorningWork || isAfternoonWork) {
+                    if (isMorning || isAfternoon) {
                         totalMinutes++;
                     }
                 }
@@ -153,7 +163,7 @@
             const hrs = parseFloat(document.getElementById('calc-result').innerText);
 
             if (hrs <= 0) {
-                alert("請選擇有效的上班時段進行請假");
+                alert("請選擇有效的上班時段進行請假（請避開休息時間或週末）");
                 return;
             }
 
@@ -172,7 +182,7 @@
             }]);
 
             if (!error) {
-                alert("申請單已送出，等待審核中");
+                alert("申請成功！時數已紀錄，請等待管理員審核。");
                 window.location.href = "portal.html";
             } else {
                 alert("送出失敗：" + error.message);
