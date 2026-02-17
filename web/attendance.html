@@ -1,212 +1,215 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業管理系統 - 出勤打卡</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業管理系統 - 出勤打卡</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
 
-    <style>
-        body { padding: 20px; max-width: 600px; margin: auto; background-color: #f0f2f5; }
-        .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        #status { font-weight: bold; margin-top: 1.5rem; text-align: center; min-height: 3em; }
-        .clock-display { font-size: 2.8rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem; color: #1a1a1a; }
-        .date-display { text-align: center; color: #777; margin-bottom: 2rem; letter-spacing: 1px; }
-        button { width: 100%; margin-bottom: 1rem; font-size: 1.1rem; transition: 0.3s; }
-        button:disabled { cursor: not-allowed; opacity: 0.7; }
-        .location-info { font-size: 0.85rem; color: #888; text-align: center; margin-top: 1rem; background: #f9f9f9; padding: 10px; border-radius: 8px; }
-        /* 新增：回主選單按鈕的間距 */
-        .back-nav { margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1.5rem; }
-    </style>
+    <style>
+        body { padding: 20px; max-width: 600px; margin: auto; background-color: #f0f2f5; }
+        .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        #status { font-weight: bold; margin-top: 1.5rem; text-align: center; min-height: 3em; }
+        .clock-display { font-size: 2.8rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem; color: #1a1a1a; }
+        .date-display { text-align: center; color: #777; margin-bottom: 2rem; letter-spacing: 1px; }
+        button { width: 100%; margin-bottom: 1rem; font-size: 1.1rem; transition: 0.3s; }
+        button:disabled { cursor: not-allowed; opacity: 0.7; }
+        .location-info { font-size: 0.85rem; color: #888; text-align: center; margin-top: 1rem; background: #f9f9f9; padding: 10px; border-radius: 8px; }
+    </style>
 </head>
 <body>
-    <main class="container">
-        <div class="card">
-            <div class="clock-display" id="clock">00:00:00</div>
-            <div class="date-display" id="date-info">----年--月--日</div>
+    <main class="container">
+        <div class="card">
+            <div class="clock-display" id="clock">00:00:00</div>
+            <div class="date-display" id="date-info">----年--月--日</div>
 
-            <h3 id="welcome-msg" style="text-align:center;">載入中...</h3>
-            <p style="text-align:center;">當前身分：<mark id="user-role">---</mark></p>
-            <hr>
-            
-            <div id="check-buttons">
-                <button id="btn-in" onclick="handleCheckIn('check_in')">🌞 上班打卡</button>
-                <button id="btn-out" class="secondary" onclick="handleCheckIn('check_out')">🌜 下班打卡</button>
-            </div>
+            <h3 id="welcome-msg" style="text-align:center;">載入中...</h3>
+            <p style="text-align:center;">當前身分：<mark id="user-role">---</mark></p>
+            <hr>
+            
+            <div id="check-buttons">
+                <button id="btn-in" onclick="handleCheckIn('check_in')">🌞 上班打卡</button>
+                <button id="btn-out" class="secondary" onclick="handleCheckIn('check_out')">🌜 下班打卡</button>
+            </div>
 
-            <div id="status">正在同步系統資訊...</div>
+            <div id="status">正在同步系統資訊...</div>
 
-            <div class="location-info" id="gps-detail">
-                <strong>[ 定位資訊 ]</strong><br>
-                目前位置：<span id="coord-val">尚未取得</span><br>
-                距離中心：<span id="dist-val">--</span> 公尺
-            </div>
+            <div class="location-info" id="gps-detail">
+                <strong>[ 定位資訊 ]</strong><br>
+                目前位置：<span id="coord-val">尚未取得</span><br>
+                距離中心：<span id="dist-val">--</span> 公尺
+            </div>
+        </div>
+    </main>
 
-            <div class="back-nav">
-                <button class="outline contrast" onclick="location.href='portal.html'">🏠 返回主選單</button>
-            </div>
-        </div>
-    </main>
+    <script>
+        // 全域變數
+        let OFFICE_CONFIG = { lat: 0, lng: 0, radius: 200 };
+        const uInfo = {
+            name: localStorage.getItem('userName'),
+            email: localStorage.getItem('userEmail'),
+            role: localStorage.getItem('userRole')
+        };
 
-    <script>
-        // 全域變數
-        let OFFICE_CONFIG = { lat: 0, lng: 0, radius: 200 };
-        const uInfo = {
-            name: localStorage.getItem('userName'),
-            email: localStorage.getItem('userEmail'),
-            role: localStorage.getItem('userRole')
-        };
+        // 1. 更新時鐘
+        function updateClock() {
+            const now = new Date();
+            const twTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+            document.getElementById('clock').innerText = twTime.toLocaleTimeString('zh-TW', { hour12: false });
+            document.getElementById('date-info').innerText = `${twTime.getFullYear()}年${twTime.getMonth()+1}月${twTime.getDate()}日`;
+        }
+        setInterval(updateClock, 1000);
 
-        // 1. 更新時鐘
-        function updateClock() {
-            const now = new Date();
-            const twTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
-            document.getElementById('clock').innerText = twTime.toLocaleTimeString('zh-TW', { hour12: false });
-            document.getElementById('date-info').innerText = `${twTime.getFullYear()}年${twTime.getMonth()+1}月${twTime.getDate()}日`;
-        }
-        setInterval(updateClock, 1000);
+        // 2. 初始化流程
+        window.onload = async function() {
+            if (!uInfo.email) {
+                alert("登入逾時，請重新登入");
+                window.location.href = "index.html";
+                return;
+            }
+            document.getElementById('welcome-msg').innerText = `你好，${uInfo.name}`;
+            document.getElementById('user-role').innerText = uInfo.role;
+            updateClock();
 
-        // 2. 初始化流程
-        window.onload = async function() {
-            if (!uInfo.email) {
-                alert("登入逾時，請重新登入");
-                window.location.href = "index.html";
-                return;
-            }
-            document.getElementById('welcome-msg').innerText = `你好，${uInfo.name}`;
-            document.getElementById('user-role').innerText = uInfo.role;
-            updateClock();
+            // 同步執行：載入座標與檢查今日打卡狀態
+            await Promise.all([
+                loadOfficeConfig(),
+                checkTodayStatus()
+            ]);
+        };
 
-            // 同步執行：載入座標與檢查今日打卡狀態
-            await Promise.all([
-                loadOfficeConfig(),
-                checkTodayStatus()
-            ]);
-        };
+        // 3. 載入辦公室座標設定
+        async function loadOfficeConfig() {
+            try {
+                const { data, error } = await _supabase
+                    .from('system_config')
+                    .select('latitude, longitude, radius')
+                    .eq('config_name', 'office_location')
+                    .single();
+                
+                if (data && !error) {
+                    OFFICE_CONFIG.lat = data.latitude;
+                    OFFICE_CONFIG.lng = data.longitude;
+                    OFFICE_CONFIG.radius = data.radius;
+                    document.getElementById('status').innerText = "📍 GPS 定位系統就緒";
+                } else {
+                    document.getElementById('status').innerText = "❌ 無法讀取中心座標";
+                }
+            } catch (e) {
+                document.getElementById('status').innerText = "❌ 網路連線異常";
+            }
+        }
 
-        // 3. 載入辦公室座標設定
-        async function loadOfficeConfig() {
-            try {
-                const { data, error } = await _supabase
-                    .from('system_config')
-                    .select('latitude, longitude, radius')
-                    .eq('config_name', 'office_location')
-                    .single();
-                
-                if (data && !error) {
-                    OFFICE_CONFIG.lat = data.latitude;
-                    OFFICE_CONFIG.lng = data.longitude;
-                    OFFICE_CONFIG.radius = data.radius;
-                    document.getElementById('status').innerText = "📍 GPS 定位系統就緒";
-                } else {
-                    document.getElementById('status').innerText = "❌ 無法讀取中心座標";
-                }
-            } catch (e) {
-                document.getElementById('status').innerText = "❌ 網路連線異常";
-            }
-        }
+        // 4. 檢查今日打卡狀態 (防重複打卡)
+        async function checkTodayStatus() {
+            const now = new Date();
+            // 取得今日台灣時間 00:00:00 的 ISO 字串
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-        // 4. 檢查今日打卡狀態 (防重複打卡)
-        async function checkTodayStatus() {
-            const now = new Date();
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+            const { data, error } = await _supabase
+                .from('attendance_logs')
+                .select('type')
+                .eq('user_email', uInfo.email)
+                .gte('created_at', todayStart);
 
-            const { data, error } = await _supabase
-                .from('attendance_logs')
-                .select('type')
-                .eq('user_email', uInfo.email)
-                .gte('created_at', todayStart);
+            if (data && !error) {
+                data.forEach(log => {
+                    if (log.type === 'check_in') {
+                        const btn = document.getElementById('btn-in');
+                        btn.disabled = true;
+                        btn.innerText = "✅ 今日上班已打卡";
+                    }
+                    if (log.type === 'check_out') {
+                        const btn = document.getElementById('btn-out');
+                        btn.disabled = true;
+                        btn.innerText = "✅ 今日下班已打卡";
+                    }
+                });
+            }
+        }
 
-            if (data && !error) {
-                data.forEach(log => {
-                    if (log.type === 'check_in') {
-                        const btn = document.getElementById('btn-in');
-                        btn.disabled = true;
-                        btn.innerText = "✅ 今日上班已打卡";
-                    }
-                    if (log.type === 'check_out') {
-                        const btn = document.getElementById('btn-out');
-                        btn.disabled = true;
-                        btn.innerText = "✅ 今日下班已打卡";
-                    }
-                });
-            }
-        }
+        // 5. 距離計算
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return Math.round(R * c * 1000);
+        }
 
-        // 5. 距離計算
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return Math.round(R * c * 1000);
-        }
+        // 6. 執行打卡
+        async function handleCheckIn(actionType) {
+            const statusEl = document.getElementById('status');
+            const btnIn = document.getElementById('btn-in');
+            const btnOut = document.getElementById('btn-out');
 
-        // 6. 執行打卡
-        async function handleCheckIn(actionType) {
-            const statusEl = document.getElementById('status');
-            const btnIn = document.getElementById('btn-in');
-            const btnOut = document.getElementById('btn-out');
+            if (OFFICE_CONFIG.lat === 0) {
+                alert("尚未獲取設定值，請稍後再試");
+                return;
+            }
 
-            if (OFFICE_CONFIG.lat === 0) {
-                alert("尚未獲取設定值，請稍後再試");
-                return;
-            }
+            statusEl.innerHTML = `<span aria-busy="true">正在取得 GPS 位置...</span>`;
+            btnIn.disabled = true;
+            btnOut.disabled = true;
 
-            statusEl.innerHTML = `<span aria-busy="true">正在取得 GPS 位置...</span>`;
-            btnIn.disabled = true;
-            btnOut.disabled = true;
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const uLat = pos.coords.latitude;
+                    const uLng = pos.coords.longitude;
+                    const dist = calculateDistance(uLat, uLng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
+                    
+                    document.getElementById('coord-val').innerText = `${uLat.toFixed(6)}, ${uLng.toFixed(6)}`;
+                    document.getElementById('dist-val').innerText = dist;
 
-            navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    const uLat = pos.coords.latitude;
-                    const uLng = pos.coords.longitude;
-                    const dist = calculateDistance(uLat, uLng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
-                    
-                    document.getElementById('coord-val').innerText = `${uLat.toFixed(6)}, ${uLng.toFixed(6)}`;
-                    document.getElementById('dist-val').innerText = dist;
+                    if (dist > OFFICE_CONFIG.radius) {
+                        statusEl.innerHTML = `<span style="color:red">❌ 距離過遠 (${dist}m)</span>`;
+                        // 重新檢查狀態以決定是否恢復按鈕
+                        await checkTodayStatus();
+                        // 如果檢查完按鈕沒被鎖住，才恢復點擊
+                        if (actionType === 'check_in' && !document.getElementById('btn-in').innerText.includes('已打卡')) btnIn.disabled = false;
+                        if (actionType === 'check_out' && !document.getElementById('btn-out').innerText.includes('已打卡')) btnOut.disabled = false;
+                    } else {
+                        statusEl.innerText = "📍 範圍核對成功，儲存中...";
+                        await submitAttendance(uLat, uLng, actionType);
+                    }
+                },
+                (err) => {
+                    statusEl.innerHTML = `<span style="color:red">定位失敗，請開啟定位權限</span>`;
+                    checkTodayStatus(); 
+                }, 
+                { enableHighAccuracy: false, timeout: 10000 }
+            );
+        }
 
-                    if (dist > OFFICE_CONFIG.radius) {
-                        statusEl.innerHTML = `<span style="color:red">❌ 距離過遠 (${dist}m)</span>`;
-                        await checkTodayStatus();
-                        if (actionType === 'check_in' && !document.getElementById('btn-in').innerText.includes('已打卡')) btnIn.disabled = false;
-                        if (actionType === 'check_out' && !document.getElementById('btn-out').innerText.includes('已打卡')) btnOut.disabled = false;
-                    } else {
-                        statusEl.innerText = "📍 範圍核對成功，儲存中...";
-                        await submitAttendance(uLat, uLng, actionType);
-                    }
-                },
-                (err) => {
-                    statusEl.innerHTML = `<span style="color:red">定位失敗，請開啟定位權限</span>`;
-                    checkTodayStatus(); 
-                }, 
-                { enableHighAccuracy: false, timeout: 10000 }
-            );
-        }
+        // 7. 寫入紀錄
+        async function submitAttendance(lat, lng, type) {
+            const statusEl = document.getElementById('status');
+            const dist = calculateDistance(lat, lng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
 
-        // 7. 寫入紀錄
-        async function submitAttendance(lat, lng, type) {
-            const statusEl = document.getElementById('status');
-            const dist = calculateDistance(lat, lng, OFFICE_CONFIG.lat, OFFICE_CONFIG.lng);
+            const { error } = await _supabase.from('attendance_logs').insert([{
+                user_email: uInfo.email,
+                user_name: uInfo.name,
+                type: type,
+                latitude: lat,
+                longitude: lng,
+                distance: dist,
+                is_within_range: true,
+                device_info: navigator.userAgent
+            }]);
 
-            const { error } = await _supabase.from('attendance_logs').insert([{
-                user_email: uInfo.email,
-                user_name: uInfo.name,
-                type: type,
-                latitude: lat,
-                longitude: lng,
-                distance: dist,
-                is_within_range: true,
-                device_info: navigator.userAgent
-            }]);
-
-            if (!error) {
-                statusEl.innerHTML = `<span style="color:green">✅ 打卡紀錄已儲存！</span>`;
-                setTimeout(() => { window.location.href = "portal.html"; }, 1500);
-            } else {
-                alert("系統錯誤
+            if (!error) {
+                statusEl.innerHTML = `<span style="color:green">✅ 打卡紀錄已儲存！</span>`;
+                setTimeout(() => { window.location.href = "portal.html"; }, 1500);
+            } else {
+                alert("系統錯誤：" + error.message);
+                location.reload(); // 失敗則重新整理恢復按鈕狀態
+            }
+        }
+    </script>
+</body>
+</html>
