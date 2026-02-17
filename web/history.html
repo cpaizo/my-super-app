@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>個人出勤報表 - 企業管理系統</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <style>
+        body { padding: 20px; max-width: 900px; margin: auto; background-color: #f0f2f5; }
+        .container-card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .status-tag { padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+        .tag-success { background: #d4edda; color: #155724; }
+        .tag-danger { background: #f8d7da; color: #721c24; }
+        table th { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <main class="container-card">
+        <div class="header-nav">
+            <h2 style="margin:0;">📊 出勤紀錄報表</h2>
+            <button class="outline" onclick="location.href='portal.html'" style="width:auto; margin:0;">返回主選單</button>
+        </div>
+
+        <p>顯示帳號：<strong id="display-email">---</strong> 的近期紀錄</p>
+
+        <figure>
+            <table role="grid">
+                <thead>
+                    <tr>
+                        <th>日期時間</th>
+                        <th>類型</th>
+                        <th>座標 (緯度, 經度)</th>
+                        <th>距離公司</th>
+                        <th>狀態</th>
+                    </tr>
+                </thead>
+                <tbody id="log-content">
+                    <tr><td colspan="5" style="text-align:center;">正在載入資料...</td></tr>
+                </tbody>
+            </table>
+        </figure>
+
+        <div id="no-data" style="display:none; text-align:center; padding: 2rem; color: #666;">
+            目前尚無打卡紀錄。
+        </div>
+    </main>
+
+    <script>
+        const uEmail = localStorage.getItem('userEmail');
+
+        window.onload = async function() {
+            if (!uEmail) {
+                alert("登入逾時，請重新登入");
+                window.location.href = "index.html";
+                return;
+            }
+            document.getElementById('display-email').innerText = uEmail;
+            await loadLogs();
+        };
+
+        async function loadLogs() {
+            const tableBody = document.getElementById('log-content');
+            
+            try {
+                // 從資料庫抓取該使用者的紀錄，按時間倒序排列
+                const { data, error } = await _supabase
+                    .from('attendance_logs')
+                    .select('*')
+                    .eq('user_email', uEmail)
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    tableBody.innerHTML = "";
+                    document.getElementById('no-data').style.display = "block";
+                    return;
+                }
+
+                // 渲染表格內容
+                tableBody.innerHTML = data.map(log => {
+                    const date = new Date(log.created_at);
+                    const formattedTime = date.toLocaleString('zh-TW', { 
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', hour12: false 
+                    });
+
+                    const typeBadge = log.type === 'check_in' ? '🌞 上班' : '🌜 下班';
+                    const distanceText = log.distance ? `${log.distance} 公尺` : '--';
+                    const statusClass = log.is_within_range ? 'tag-success' : 'tag-danger';
+                    const statusText = log.is_within_range ? '正常' : '異常';
+
+                    return `
+                        <tr>
+                            <td>${formattedTime}</td>
+                            <td>${typeBadge}</td>
+                            <td><small>${log.latitude.toFixed(4)}, ${log.longitude.toFixed(4)}</small></td>
+                            <td>${distanceText}</td>
+                            <td><span class="status-tag ${statusClass}">${statusText}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error("Fetch Error:", err);
+                tableBody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">讀取失敗：${err.message}</td></tr>`;
+            }
+        }
+    </script>
+</body>
+</html>
