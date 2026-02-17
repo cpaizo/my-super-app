@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <style>
-        body { padding: 20px; max-width: 900px; margin: auto; background-color: #f0f2f5; }
+        body { padding: 20px; max-width: 1000px; margin: auto; background-color: #f0f2f5; }
         .container-card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         .header-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .status-tag { padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
@@ -24,15 +24,15 @@
             <button class="outline" onclick="location.href='portal.html'" style="width:auto; margin:0;">返回主選單</button>
         </div>
 
-        <p>顯示帳號：<strong id="display-email">---</strong> 的近期紀錄</p>
+        <p>員工姓名：<strong id="display-name" style="color:#357ebd;">---</strong> 
+           | 帳號：<strong id="display-email">---</strong></p>
 
         <figure>
             <table role="grid">
                 <thead>
                     <tr>
-                        <th>日期時間</th>
+                        <th>姓名</th> <th>日期時間</th>
                         <th>類型</th>
-                        <th>座標 (緯度, 經度)</th>
                         <th>距離公司</th>
                         <th>狀態</th>
                     </tr>
@@ -50,6 +50,7 @@
 
     <script>
         const uEmail = localStorage.getItem('userEmail');
+        const uName = localStorage.getItem('userName'); // 取得 localStorage 中的姓名
 
         window.onload = async function() {
             if (!uEmail) {
@@ -57,7 +58,10 @@
                 window.location.href = "index.html";
                 return;
             }
+            // 顯示標題資訊
             document.getElementById('display-email').innerText = uEmail;
+            document.getElementById('display-name').innerText = uName || "未設定姓名";
+            
             await loadLogs();
         };
 
@@ -65,13 +69,12 @@
             const tableBody = document.getElementById('log-content');
             
             try {
-                // 從資料庫抓取該使用者的紀錄，按時間倒序排列
                 const { data, error } = await _supabase
                     .from('attendance_logs')
                     .select('*')
                     .eq('user_email', uEmail)
                     .order('created_at', { ascending: false })
-                    .limit(20);
+                    .limit(30);
 
                 if (error) throw error;
 
@@ -81,7 +84,6 @@
                     return;
                 }
 
-                // 渲染表格內容
                 tableBody.innerHTML = data.map(log => {
                     const date = new Date(log.created_at);
                     const formattedTime = date.toLocaleString('zh-TW', { 
@@ -90,15 +92,18 @@
                     });
 
                     const typeBadge = log.type === 'check_in' ? '🌞 上班' : '🌜 下班';
-                    const distanceText = log.distance ? `${log.distance} 公尺` : '--';
+                    const distanceText = log.distance ? `${log.distance}m` : '--';
                     const statusClass = log.is_within_range ? 'tag-success' : 'tag-danger';
                     const statusText = log.is_within_range ? '正常' : '異常';
+                    
+                    // 從資料庫每筆紀錄中取出 user_name
+                    const rowName = log.user_name || uName || "員工";
 
                     return `
                         <tr>
+                            <td><strong>${rowName}</strong></td>
                             <td>${formattedTime}</td>
                             <td>${typeBadge}</td>
-                            <td><small>${log.latitude.toFixed(4)}, ${log.longitude.toFixed(4)}</small></td>
                             <td>${distanceText}</td>
                             <td><span class="status-tag ${statusClass}">${statusText}</span></td>
                         </tr>
