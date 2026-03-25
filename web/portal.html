@@ -16,9 +16,13 @@
         
         /* 針對不同功能的按鈕顏色區分 */
         .btn-attendance { background-color: #3949ab; border-color: #3949ab; }
-        .btn-order { background-color: #fb8c00; border-color: #fb8c00; } /* 點餐功能用橘色 */
+        .btn-order { background-color: #fb8c00; border-color: #fb8c00; } 
         .btn-leave { background-color: #43a047; border-color: #43a047; }
         .btn-leave_history { background-color: #5fcf9b; border-color: #5fcf9b; }
+        
+        /* 新增：特休額度管理按鈕顏色 */
+        .btn-quota { background-color: #455a64; border-color: #455a64; } 
+        
         h4 { margin-bottom: 1.5rem; color: #555; }
     </style>
 </head>
@@ -36,7 +40,8 @@
             <h4>📋 員工功能</h4>
             <div class="menu-grid">
                 <button class="btn-attendance" onclick="location.href='attendance.html'">📍 上下班打卡</button>
-                <button class="btn-order" onclick="location.href='order_system.html'">🍱 線上點餐</button> <button class="btn-leave" onclick="location.href='leave_apply.html'">✍️ 申請請假</button>
+                <button class="btn-order" onclick="location.href='order_system.html'">🍱 線上點餐</button> 
+                <button class="btn-leave" onclick="location.href='leave_apply.html'">✍️ 申請請假</button>
                 <button class="secondary" onclick="location.href='history.html'">📊 我的出勤報表</button>
                 <button class="btn-leave_history" onclick="location.href='leave_history.html'">📋 我的請假紀錄</button>
             </div>
@@ -47,6 +52,9 @@
             <div class="menu-grid">
                 <button onclick="location.href='admin_report.html'">📈 即時考勤監控</button>
                 <button onclick="location.href='admin_review.html'" class="secondary">⚖️ 審核請假單</button>
+                
+                <button class="btn-quota" onclick="location.href='admin_quotas.html'">⚖️ 特休額度管理</button>
+                
                 <button class="btn-leave_history" onclick="location.href='leave_history.html'">📋 請假紀錄查詢</button>
                 <button class="outline" onclick="location.href='order_system.html'">🍔 查看今日訂單</button>
                 <button class="outline" onclick="location.href='admin_employees.html'">👥 員工資料維護</button>
@@ -68,7 +76,7 @@
             document.getElementById('user-name-display').innerText = uName;
             document.getElementById('user-email-display').innerText = uEmail;
 
-            // 角色判斷
+            // 角色判斷：只有 admin 才能看到管理者工具
             if (uRole === 'admin') {
                 document.getElementById('admin-panel').style.display = 'block';
             }
