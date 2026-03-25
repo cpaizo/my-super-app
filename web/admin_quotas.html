@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>特休額度管理 - 企業管理系統</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <style>
+        body { padding: 20px; background-color: #f4f7f6; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .quota-card { border: 1px solid #eee; padding: 20px; border-radius: 10px; margin-top: 20px; background: #fafafa; }
+        .flex-row { display: flex; gap: 10px; align-items: flex-end; }
+        mark { padding: 2px 8px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>⚖️ 特休額度管理</h1>
+            <button class="outline" onclick="location.href='portal.html'">回主選單</button>
+        </header>
+
+        <section>
+            <label for="employee-select">請選擇員工：</label>
+            <select id="employee-select" onchange="fetchUserQuotas()">
+                <option value="">-- 請選擇員工 --</option>
+            </select>
+        </section>
+
+        <div id="quota-display-area" style="display: none;">
+            <div class="quota-card">
+                <h3>📊 <span id="target-name"></span> 的額度概況</h3>
+                <p>Email: <code id="target-email"></code></p>
+                <hr>
+                
+                <table role="grid">
+                    <thead>
+                        <tr>
+                            <th>假別</th>
+                            <th>總額度 (小時)</th>
+                            <th>已使用 (小時)</th>
+                            <th>剩餘 (小時)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quota-table-body">
+                        </tbody>
+                </table>
+
+                <hr>
+                <h4>➕ 調整/新增額度</h4>
+                <div class="flex-row">
+                    <div>
+                        <label>假別</label>
+                        <select id="new-leave-type">
+                            <option value="Annual">特休 (Annual)</option>
+                            <option value="Sick">病假 (Sick)</option>
+                            <option value="Personal">事假 (Personal)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>總額度 (小時)</label>
+                        <input type="number" id="new-quota" placeholder="例如: 56">
+                    </div>
+                    <button onclick="updateQuota()">儲存修改</button>
+                </div>
+                <small>* 若該假別已存在，系統將會更新總額度；若不存在則會新增。</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 頁面載入後，先抓取所有員工選單
+        window.onload = async function() {
+            const select = document.getElementById('employee-select');
+            try {
+                const { data: employees, error } = await _supabase
+                    .from('employees')
+                    .select('full_name, email')
+                    .order('full_name', { ascending: true });
+
+                if (error) throw error;
+
+                employees.forEach(emp => {
+                    const opt = document.createElement('option');
+                    opt.value = emp.email;
+                    opt.getAttribute('data-name', emp.full_name); // 儲存姓名備用
+                    opt.innerText = `${emp.full_name} (${emp.email})`;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                alert("抓取員工名單失敗: " + err.message);
+            }
+        };
+
+        // 查詢特定員工的額度
+        async function fetchUserQuotas() {
+            const email = document.getElementById('employee-select').value;
+            const displayArea = document.getElementById('quota-display-area');
+            const tableBody = document.getElementById('quota-table-body');
+            
+            if (!email) {
+                displayArea.style.display = 'none';
+                return;
+            }
+
+            // 顯示選擇的姓名與 Email
+            const selectEl = document.getElementById('employee-select');
+            const selectedText = selectEl.options[selectEl.selectedIndex].text;
+            document.getElementById('target-name').innerText = selectedText.split(' (')[0];
+            document.getElementById('target-email').innerText = email;
+
+            try {
+                const { data: quotas, error } = await _supabase
+                    .from('leave_quotas')
+                    .select('*')
+                    .eq('user_email', email);
+
+                if (error) throw error;
+
+                displayArea.style.display = 'block';
+                
+                if (quotas.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">尚無額度資料，請於下方新增。</td></tr>';
+                } else {
+                    tableBody.innerHTML = quotas.map(q => {
+                        const remaining = q.quota_hours - q.used_hours;
+                        return `
+                            <tr>
+                                <td><strong>${q.leave_type}</strong></td>
+                                <td>${q.quota_hours}</td>
+                                <td>${q.used_hours}</td>
+                                <td><mark>${remaining}</mark></td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                alert("讀取額度失敗: " + err.message);
+            }
+        }
+
+        // 儲存或更新額度
+        async function updateQuota() {
+            const email = document.getElementById('employee-select').value;
+            const leaveType = document.getElementById('new-leave-type').value;
+            const quotaHours = parseFloat(document.getElementById('new-quota').value);
+
+            if (!quotaHours || quotaHours < 0) return alert("請輸入有效的額度時數");
+
+            try {
+                // 使用 upsert：若 email + leave_type 已存在則更新，不存在則新增
+                // 注意：這需要在 Supabase 建立唯一約束 (Unique Constraint) 才能完美運作
+                // 這裡我們先用簡單的「先查再決定」邏輯
+                const { data: existing } = await _supabase
+                    .from('leave_quotas')
+                    .select('id')
+                    .eq('user_email', email)
+                    .eq('leave_type', leaveType)
+                    .maybeSingle();
+
+                let result;
+                if (existing) {
+                    // 更新
+                    result = await _supabase
+                        .from('leave_quotas')
+                        .update({ quota_hours: quotaHours })
+                        .eq('id', existing.id);
+                } else {
+                    // 新增
+                    result = await _supabase
+                        .from('leave_quotas')
+                        .insert([{ 
+                            user_email: email, 
+                            leave_type: leaveType, 
+                            quota_hours: quotaHours,
+                            used_hours: 0 
+                        }]);
+                }
+
+                if (result.error) throw result.error;
+
+                alert("額度更新成功！");
+                document.getElementById('new-quota').value = '';
+                fetchUserQuotas(); // 重新整理表格
+            } catch (err) {
+                alert("儲存失敗: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
