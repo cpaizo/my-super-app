@@ -6,58 +6,138 @@
     <title>系統選單 - 企業管理系統</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        body { padding: 20px; max-width: 800px; margin: auto; background-color: #f0f2f5; }
-        .card { background: white; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        .user-info { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1rem; margin-bottom: 2rem; }
-        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-        .admin-section { margin-top: 2rem; padding-top: 2rem; border-top: 2px dashed #eee; }
-        .logout-btn { color: #d81b60; border-color: #d81b60; }
-        .logout-btn:hover { background-color: #fff1f6; }
+        /* 日式簡約配色方案 */
+        :root {
+            --primary: #5d5d5d;
+            --bg-color: #f7f3f0; /* 淡淡的米色背景 */
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-muted: #8c8c8c;
+            --border-color: #e0dcd9;
+            --accent-wood: #a67c52; /* 木質色 */
+            --accent-green: #899481; /* 苔蘚綠 */
+            --accent-blue: #7e8c9a; /* 霧霾藍 */
+        }
+
+        body { 
+            padding: 40px 20px; 
+            max-width: 900px; 
+            margin: auto; 
+            background-color: var(--bg-color); 
+            color: var(--text-main);
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+
+        .card { 
+            background: var(--card-bg); 
+            padding: 3rem; 
+            border-radius: 4px; /* 日式風格偏好微小的圓角或直角 */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); 
+            border: 1px solid var(--border-color);
+        }
+
+        .user-info { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            border-bottom: 1px solid var(--border-color); 
+            padding-bottom: 1.5rem; 
+            margin-bottom: 2.5rem; 
+        }
+
+        .user-info h2 { font-weight: 400; color: var(--text-main); }
+        .user-info small { color: var(--text-muted); letter-spacing: 0.05rem; }
+
+        h4 { 
+            font-weight: 500; 
+            margin-bottom: 1.5rem; 
+            color: var(--text-main); 
+            border-left: 3px solid var(--accent-wood); 
+            padding-left: 10px;
+            font-size: 1.1rem;
+        }
+
+        .menu-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 1.2rem; 
+            margin-bottom: 2.5rem;
+        }
+
+        /* 統一按鈕樣式：低飽和度配色 */
+        button {
+            border-radius: 2px;
+            font-weight: 400;
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
+            border: 1px solid transparent;
+        }
+
+        /* 員工按鈕 - 木質與亞麻色系 */
+        .btn-attendance { background-color: var(--accent-wood); border-color: var(--accent-wood); }
+        .btn-order { background-color: #bc9f80; border-color: #bc9f80; } 
+        .btn-leave { background-color: var(--accent-green); border-color: var(--accent-green); }
+        .btn-history { background-color: #d1d1d1; color: #555; border-color: #ccc; }
+        .btn-history:hover { background-color: #c4c4c4; color: #333; }
+        .btn-leave-history { background-color: var(--accent-blue); border-color: var(--accent-blue); }
+
+        /* 管理者按鈕 - 灰階與墨色系 */
+        .admin-section { 
+            margin-top: 3rem; 
+            padding-top: 2rem; 
+            border-top: 1px solid var(--border-color); 
+        }
         
-        /* 針對不同功能的按鈕顏色區分 */
-        .btn-attendance { background-color: #3949ab; border-color: #3949ab; }
-        .btn-order { background-color: #fb8c00; border-color: #fb8c00; } 
-        .btn-leave { background-color: #43a047; border-color: #43a047; }
-        .btn-leave_history { background-color: #5fcf9b; border-color: #5fcf9b; }
-        
-        /* 新增：特休額度管理按鈕顏色 */
-        .btn-quota { background-color: #455a64; border-color: #455a64; } 
-        
-        h4 { margin-bottom: 1.5rem; color: #555; }
+        .btn-admin-main { background-color: #5d5d5d; border-color: #5d5d5d; }
+        .btn-admin-sub { background-color: #f0f0f0; color: #666; border-color: #d9d9d9; }
+        .btn-admin-sub:hover { background-color: #e5e5e5; color: #333; }
+
+        .logout-btn { 
+            color: var(--text-muted); 
+            border-color: var(--border-color); 
+            font-size: 0.8rem;
+        }
+        .logout-btn:hover { 
+            background-color: #fafafa; 
+            border-color: #999;
+            color: #333;
+        }
+
+        /* 移除 Pico 原本的陰影與過度鮮豔的顏色 */
+        button:focus { box-shadow: none; }
     </style>
 </head>
 <body>
     <main class="card">
         <div class="user-info">
             <div>
-                <h2 style="margin:0;">👋 你好，<span id="user-name-display">載入中...</span></h2>
+                <h2 style="margin:0;">你好，<span id="user-name-display">載入中...</span></h2>
                 <small id="user-email-display">---</small>
             </div>
-            <button class="outline logout-btn" onclick="logout()" style="width: auto; margin:0;">登出</button>
+            <button class="outline logout-btn" onclick="logout()" style="width: auto; margin:0; padding: 4px 12px;">登出系統</button>
         </div>
 
         <section>
-            <h4>📋 員工功能</h4>
+            <h4>個人服務</h4>
             <div class="menu-grid">
-                <button class="btn-attendance" onclick="location.href='attendance.html'">📍 上下班打卡</button>
-                <button class="btn-order" onclick="location.href='order_system.html'">🍱 線上點餐</button> 
-                <button class="btn-leave" onclick="location.href='leave_apply.html'">✍️ 申請請假</button>
-                <button class="secondary" onclick="location.href='history.html'">📊 我的出勤報表</button>
-                <button class="btn-leave_history" onclick="location.href='leave_history.html'">📋 我的請假紀錄</button>
+                <button class="btn-attendance" onclick="location.href='attendance.html'">出勤打卡</button>
+                <button class="btn-order" onclick="location.href='order_system.html'">線上點餐</button> 
+                <button class="btn-leave" onclick="location.href='leave_apply.html'">請假申請</button>
+                <button class="btn-history" onclick="location.href='history.html'">出勤月報表</button>
+                <button class="btn-leave-history" onclick="location.href='leave_history.html'">個人假單紀錄</button>
             </div>
         </section>
 
         <section id="admin-panel" class="admin-section" style="display: none;">
-            <h4>🛠️ 管理者工具</h4>
+            <h4>管理工具</h4>
             <div class="menu-grid">
-                <button onclick="location.href='admin_report.html'">📈 即時考勤監控</button>
-                <button onclick="location.href='admin_review.html'" class="secondary">⚖️ 審核請假單</button>
+                <button class="btn-admin-main" onclick="location.href='admin_report.html'">出勤狀況監控</button>
+                <button class="btn-admin-main" onclick="location.href='admin_review.html'">假單審核中心</button>
+                <button class="btn-admin-main" onclick="location.href='admin_quotas.html'">特休額度管理</button>
                 
-                <button class="btn-quota" onclick="location.href='admin_quotas.html'">⚖️ 特休額度管理</button>
-                
-                <button class="btn-leave_history" onclick="location.href='leave_history.html'">📋 請假紀錄查詢</button>
-                <button class="outline" onclick="location.href='order_system.html'">🍔 查看今日訂單</button>
-                <button class="outline" onclick="location.href='admin_employees.html'">👥 員工資料維護</button>
+                <button class="btn-admin-sub" onclick="location.href='leave_history.html'">全體假單查詢</button>
+                <button class="btn-admin-sub" onclick="location.href='order_system.html'">今日訂購清單</button>
+                <button class="btn-admin-sub" onclick="location.href='admin_employees.html'">員工帳號維護</button>
             </div>
         </section>
     </main>
@@ -76,14 +156,13 @@
             document.getElementById('user-name-display').innerText = uName;
             document.getElementById('user-email-display').innerText = uEmail;
 
-            // 角色判斷：只有 admin 才能看到管理者工具
             if (uRole === 'admin') {
                 document.getElementById('admin-panel').style.display = 'block';
             }
         };
 
         function logout() {
-            if (confirm("確定要登出系統嗎？")) {
+            if (confirm("確定要結束本次作業並登出嗎？")) {
                 localStorage.clear();
                 window.location.href = "index.html";
             }
