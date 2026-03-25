@@ -2,58 +2,82 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>員工資料維護 - 企業管理系統</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <style>
         body { padding: 20px; background-color: #f4f7f6; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .form-inline { display: grid; grid-template-columns: 2fr 3fr 2fr 1fr; gap: 10px; align-items: end; margin-bottom: 30px; background: #f9f9f9; padding: 20px; border-radius: 10px; }
-        .btn-delete { background-color: #e74c3c; border-color: #e74c3c; padding: 5px 10px; font-size: 12px; }
-        .header-actions { display: flex; justify-content: space-between; align-items: center; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 30px; }
+        .btn-delete { background-color: #e74c3c; border-color: #e74c3c; padding: 5px 10px; font-size: 12px; margin: 0; }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        table { font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header-actions">
-            <h1>👥 員工資料維護</h1>
+            <hgroup>
+                <h1>👥 員工資料維護</h1>
+                <p>管理正式員工名單與系統權限</p>
+            </hgroup>
             <button class="outline" onclick="location.href='portal.html'">回主選單</button>
         </header>
 
-        <section>
+        <section class="card">
             <h3>➕ 新增正式員工</h3>
-            <div class="form-inline">
+            <div class="form-grid">
                 <div>
-                    <label>姓名</label>
+                    <label>工號 (employee_id)</label>
+                    <input type="text" id="new-id" placeholder="例如：S001">
+                </div>
+                <div>
+                    <label>姓名 (full_name)</label>
                     <input type="text" id="new-name" placeholder="例如：張小明">
                 </div>
                 <div>
-                    <label>電子郵件 (登入識別)</label>
-                    <input type="email" id="new-email" placeholder="test@example.com">
+                    <label>電子郵件 (email)</label>
+                    <input type="email" id="new-email" placeholder="xiaoming@company.com">
                 </div>
                 <div>
-                    <label>部門</label>
-                    <input type="text" id="new-dept" placeholder="例如：開發部">
+                    <label>部門 (department)</label>
+                    <input type="text" id="new-dept" placeholder="例如：人事部">
                 </div>
-                <button onclick="addEmployee()">新增</button>
+                <div>
+                    <label>權限 (role)</label>
+                    <select id="new-role">
+                        <option value="staff">一般員工 (staff)</option>
+                        <option value="admin">管理員 (admin)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button onclick="addEmployee()" style="width: 100%;">新增員工</button>
+                </div>
             </div>
         </section>
 
         <section>
-            <h3>📋 目前員工清單</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>📋 目前員工清單</h3>
+                <button class="contrast btn-refresh" onclick="fetchEmployees()" style="width: auto; padding: 5px 15px;">🔄 刷新</button>
+            </div>
             <figure>
                 <table role="grid">
                     <thead>
                         <tr>
-                            <th>姓名 (full_name)</th>
+                            <th>工號</th>
+                            <th>姓名</th>
                             <th>Email</th>
                             <th>部門</th>
+                            <th>權限</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="employee-list">
-                        <tr><td colspan="4" style="text-align:center;">載入中...</td></tr>
+                        <tr><td colspan="6" style="text-align:center;" aria-busy="true">正在連線至資料庫...</td></tr>
                     </tbody>
                 </table>
             </figure>
@@ -63,68 +87,94 @@
     <script>
         window.onload = fetchEmployees;
 
-        // 1. 抓取所有員工
+        // 1. 抓取所有員工 (配合你的欄位名稱)
         async function fetchEmployees() {
             const tbody = document.getElementById('employee-list');
-            const { data, error } = await _supabase
-                .from('employees')
-                .select('*')
-                .order('created_at', { ascending: false });
+            try {
+                // 使用 employee_id 排序，避免 created_at 不存在的問題
+                const { data, error } = await _supabase
+                    .from('employees')
+                    .select('*')
+                    .order('employee_id', { ascending: true });
 
-            if (error) {
-                alert("讀取失敗: " + error.message);
-                return;
+                if (error) throw error;
+
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">目前尚無員工資料</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.map(emp => `
+                    <tr>
+                        <td><code>${emp.employee_id}</code></td>
+                        <td><strong>${emp.full_name}</strong></td>
+                        <td>${emp.email}</td>
+                        <td>${emp.department || '---'}</td>
+                        <td><mark>${emp.role || 'staff'}</mark></td>
+                        <td>
+                            <button class="btn-delete" onclick="deleteEmployee('${emp.employee_id}', '${emp.full_name}')">刪除</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error("Fetch Error:", err);
+                tbody.innerHTML = `<tr><td colspan="6" style="color:red; text-align:center;">⚠️ 載入失敗: ${err.message}</td></tr>`;
             }
-
-            tbody.innerHTML = data.map(emp => `
-                <tr>
-                    <td><strong>${emp.full_name}</strong></td>
-                    <td>${emp.email}</td>
-                    <td>${emp.department || '---'}</td>
-                    <td>
-                        <button class="btn-delete" onclick="deleteEmployee(${emp.id}, '${emp.full_name}')">刪除</button>
-                    </td>
-                </tr>
-            `).join('');
         }
 
         // 2. 新增員工
         async function addEmployee() {
-            const name = document.getElementById('new-name').value;
-            const email = document.getElementById('new-email').value;
-            const dept = document.getElementById('new-dept').value;
+            const emp_id = document.getElementById('new-id').value.trim();
+            const name = document.getElementById('new-name').value.trim();
+            const email = document.getElementById('new-email').value.trim();
+            const dept = document.getElementById('new-dept').value.trim();
+            const role = document.getElementById('new-role').value;
 
-            if (!name || !email) return alert("姓名與 Email 為必填！");
+            if (!emp_id || !name || !email) {
+                alert("工號、姓名、Email 為必填欄位！");
+                return;
+            }
 
-            const { error } = await _supabase
-                .from('employees')
-                .insert([{ full_name: name, email: email, department: dept }]);
+            try {
+                const { error } = await _supabase
+                    .from('employees')
+                    .insert([{ 
+                        employee_id: emp_id, 
+                        full_name: name, 
+                        email: email, 
+                        department: dept,
+                        role: role
+                    }]);
 
-            if (error) {
-                alert("新增失敗: " + error.message);
-            } else {
+                if (error) throw error;
+
                 alert("新增成功！");
-                // 清空輸入框
+                // 清空輸入
+                document.getElementById('new-id').value = '';
                 document.getElementById('new-name').value = '';
                 document.getElementById('new-email').value = '';
                 document.getElementById('new-dept').value = '';
+                
                 fetchEmployees(); // 重新整理清單
+            } catch (err) {
+                alert("新增失敗: " + err.message);
             }
         }
 
-        // 3. 刪除員工 (防呆確認)
+        // 3. 刪除員工 (使用 employee_id 做為 Key)
         async function deleteEmployee(id, name) {
-            if (!confirm(`確定要刪除員工 [${name}] 嗎？這將導致該員工無法登入及打卡。`)) return;
+            if (!confirm(`確定要刪除員工 [${name}] (工號: ${id}) 嗎？\n刪除後該員工將無法使用系統。`)) return;
 
-            const { error } = await _supabase
-                .from('employees')
-                .delete()
-                .eq('id', id);
+            try {
+                const { error } = await _supabase
+                    .from('employees')
+                    .delete()
+                    .eq('employee_id', id);
 
-            if (error) {
-                alert("刪除失敗: " + error.message);
-            } else {
+                if (error) throw error;
                 fetchEmployees();
+            } catch (err) {
+                alert("刪除失敗: " + err.message);
             }
         }
     </script>
