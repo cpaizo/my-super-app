@@ -1,0 +1,5 @@
+employee_id,email,full_name,department,role,password,arrival_date,created_at
+A001,admin@company.com,管理員(文昌),總經理室,admin,1234,2025-02-17,2026-03-25 06:08:13.126983+00
+A002,coding.bbj2020@gmail.com,Walter,資訊部,admin,1234,2026-03-25,2026-03-25 06:16:15.138403+00
+S002,linda@company.com,林小玲,會計部,staff,1234,2025-09-17,2026-03-25 06:08:13.126983+00
+S003,cpaizo.email@gmail.com,紀文昌,資訊部門,staff,1234,2020-02-17,2026-03-25 06:08:13.126983+00
