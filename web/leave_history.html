@@ -122,9 +122,11 @@
                 // 格式化日期與時間
                 const createDate = new Date(r.created_at).toLocaleDateString('zh-TW');
                 const startTime = new Date(r.start_time).toLocaleString('zh-TW', { 
+                    timeZone: 'Asia/Taipei', // 強制指定台北時區
                     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false 
                 });
-                const endTime = new Date(r.end_time).toLocaleString('zh-TW', { 
+                const endTime = new Date(r.end_time).toLocaleString('zh-TW', {
+                    timeZone: 'Asia/Taipei', // 強制指定台北時區 
                     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false 
                 });
 
