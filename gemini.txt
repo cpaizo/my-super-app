@@ -1,3 +1,9 @@
 gemini
 https://gemini.google.com/share/a26c61e495ed
 cpaizo.email2022@gmail.com
+
+supabase.com
+使用 cpaizo github 登入
+
+https://dashboard.render.com/
+使用 cpaizo github 登入

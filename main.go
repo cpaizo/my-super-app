@@ -16,13 +16,23 @@ var (
 	rdb *redis.Client
 )
 
-// Supabase 資訊 (建議部署後改為環境變數，目前先保留你的設定)
+// Supabase 資訊
 const (
 	supabaseURL = "https://efkiuxgwlzjftlqxtett.supabase.co"
 	supabaseKey = "sb_publishable_G2itMMa0hbauxhKrnUJtwA_XDbhELbU"
 )
 
 func main() {
+	// 【新增】強制設定程式全局時區為台灣時間 (UTC+8)
+	// 這確保了 time.Now() 在雲端伺服器上也能正確顯示台灣時間
+	loc, err := time.LoadLocation("Asia/Taipei")
+	if err == nil {
+		time.Local = loc
+		fmt.Println("📍 時區已同步：Asia/Taipei")
+	} else {
+		fmt.Printf("⚠️ 時區設定失敗: %v\n", err)
+	}
+
 	// 1. 設定埠號：Render 部署必備，本地預設 8080
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -30,7 +40,7 @@ func main() {
 	}
 
 	// 2. 初始化 Redis 連線
-	redisURL := os.Getenv("REDIS_URL") // 這是從 Render 後台讀取的
+	redisURL := os.Getenv("REDIS_URL")
 	if redisURL != "" {
 		opt, err := redis.ParseURL(redisURL)
 		if err == nil {
@@ -47,21 +57,20 @@ func main() {
 	fs := http.FileServer(http.Dir("./web"))
 	http.Handle("/", fs)
 
-	// 4. 打卡 API 邏輯 (供前端 JavaScript 呼叫)
+	// 4. 打卡 API 邏輯
 	http.HandleFunc("/api/checkin", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		// 從前端拿員工 ID
 		userID := r.FormValue("userID")
 		if userID == "" {
 			http.Error(w, "請提供員工 ID", http.StatusBadRequest)
 			return
 		}
 
-		// 產生日期的 Key (例如 checkin:2026-04-12:WALTER)
+		// 現在這裡的 time.Now() 會是正確的台灣日期
 		today := time.Now().Format("2006-01-02")
 		redisKey := fmt.Sprintf("checkin:%s:%s", today, userID)
 
@@ -70,17 +79,16 @@ func main() {
 			exists, _ := rdb.Exists(ctx, redisKey).Result()
 			if exists > 0 {
 				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprintf(w, "❌ 您今天已經打過卡囉！")
+				fmt.Fprintf(w, "❌ 您今天（%s）已經打過卡囉！", today)
 				return
 			}
 
-			// 如果沒打過，在 Redis 標記已打卡，設定 24 小時後自動失效
+			// 在 Redis 標記已打卡，設定 24 小時後自動失效
 			rdb.Set(ctx, redisKey, "checked", 24*time.Hour)
 		}
 		// ----------------------
 
-		// 此處可擴充寫入 Supabase 資料庫的邏輯
-		fmt.Fprintf(w, "✅ 打卡成功！系統已記錄您的出勤時間。")
+		fmt.Fprintf(w, "✅ 打卡成功！系統已記錄您的出勤時間（%s）。", time.Now().Format("15:04:05"))
 	})
 
 	fmt.Println("-------------------------------------------")
@@ -93,7 +101,7 @@ func main() {
 	fmt.Println("-------------------------------------------")
 
 	// 5. 啟動伺服器
-	err := http.ListenAndServe(":"+port, nil)
+	err = http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		fmt.Printf("伺服器無法啟動: %v\n", err)
 	}
